@@ -37,6 +37,7 @@ jobs:
           java.write_text(code)
           PY
           python3 patch_mobile.py
+          python3 patch_features.py
 
       - name: Set up Java
         uses: actions/setup-java@v4
