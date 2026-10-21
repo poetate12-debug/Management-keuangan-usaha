@@ -62,7 +62,7 @@ s=s.replace("function deleteCategory(id){","function editCategory(id){const c=st
 start=s.find("function renderCategories(){")
 end=s.find("\nfunction editCategory",start)
 if start<0 or end<0: raise SystemExit("category renderer missing")
-renderer="""function renderCategories(){document.getElementById('categoriesList').innerHTML=['income','expense'].map(type=>'<h3 style="font-size:13px;color:var(--muted);margin:14px 0 8px">'+(type==='income'?'PEMASUKAN':'PENGELUARAN')+'</h3>'+state.categories.filter(c=>c.type===type).map(c=>'<div class="account"><div><strong>'+esc(c.name)+'</strong></div><div><button class="small" onclick="editCategory(\''+c.id+'\')">Edit</button> <button class="small danger" onclick="deleteCategory(\''+c.id+'\')">Hapus</button></div></div>').join('')).join('')}"""
+renderer="""function renderCategories(){document.getElementById('categoriesList').innerHTML=['income','expense'].map(type=>'<h3 style="font-size:13px;color:var(--muted);margin:14px 0 8px">'+(type==='income'?'PEMASUKAN':'PENGELUARAN')+'</h3>'+state.categories.filter(c=>c.type===type).map(c=>'<div class="account"><div><strong>'+esc(c.name)+'</strong></div><div><button class="small" onclick="editCategory(&quot;'+esc(c.id)+'&quot;)">Edit</button> <button class="small danger" onclick="deleteCategory(&quot;'+esc(c.id)+'&quot;)">Hapus</button></div></div>').join('')).join('')}"""
 s=s[:start]+renderer+s[end:]
 p.write_text(s)
 print("Feature upgrade applied",len(s))
