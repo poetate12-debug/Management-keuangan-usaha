@@ -64,5 +64,56 @@ end=s.find("\nfunction editCategory",start)
 if start<0 or end<0: raise SystemExit("category renderer missing")
 renderer="""function renderCategories(){document.getElementById('categoriesList').innerHTML=['income','expense'].map(type=>'<h3 style="font-size:13px;color:var(--muted);margin:14px 0 8px">'+(type==='income'?'PEMASUKAN':'PENGELUARAN')+'</h3>'+state.categories.filter(c=>c.type===type).map(c=>'<div class="account"><div><strong>'+esc(c.name)+'</strong></div><div><button class="small" onclick="editCategory(&quot;'+esc(c.id)+'&quot;)">Edit</button> <button class="small danger" onclick="deleteCategory(&quot;'+esc(c.id)+'&quot;)">Hapus</button></div></div>').join('')).join('')}"""
 s=s[:start]+renderer+s[end:]
+
+# UX and backup improvements requested after real-device testing.
+extra_css = """
+/* RuangUsaha modal and backup UX */
+@media(max-width:700px){
+ body.modal-open{overflow:hidden!important;position:fixed!important;width:100%;left:0;right:0}
+ .modal-backdrop{overscroll-behavior:contain;touch-action:pan-y}
+ .modal{display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:contain}
+ .modal form{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:8px}
+ .modal .form-actions{position:sticky;bottom:0;flex-shrink:0;background:#fff;padding:12px 0 max(12px,env(safe-area-inset-bottom));box-shadow:0 -8px 14px #fff}
+ .modal-head{flex-shrink:0}
+ #page-dashboard .top .actions{display:none!important}
+ #mobileBottomNav{grid-template-columns:repeat(5,minmax(0,1fr))}
+ #mobileBottomNav button[data-action="record"]{grid-column:3;grid-row:1;align-self:center;transform:translateY(-13px);min-height:64px;border-radius:20px 20px 20px 8px;background:#5b65d8;color:white;box-shadow:0 7px 18px #5b65d84d;padding:9px 3px;font-size:11px}
+ #mobileBottomNav button[data-action="record"] span:first-child{font-size:27px}
+ #mobileBottomNav button[data-page="businesses"]{grid-column:2;grid-row:1}
+ #mobileBottomNav button[data-page="reports"]{grid-column:4;grid-row:1}
+ #mobileBottomNav button[data-page="transactions"]{grid-column:5;grid-row:1}
+ #mobileBottomNav button[data-page="dashboard"]{grid-column:1;grid-row:1}
+}
+.backup-panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+.backup-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.backup-actions button{flex:1;min-width:130px}
+"""
+s=s.replace("</style>",extra_css+"\\n</style>",1)
+# Add a Settings section if this source version does not already provide one.
+if 'id="page-settings"' not in s:
+ settings_html = '<section class="section" id="page-settings"><div class="top"><div><div class="eyebrow">DATA APLIKASI</div><h1 class="heading">Pengaturan</h1><div class="desc">Cadangkan dan pulihkan data pembukuan.</div></div></div><div class="backup-panel"><h2>Cadangan data</h2><p class="desc">Ekspor semua usaha, akun, kategori, produk, dan transaksi ke file JSON. Simpan file ini di folder Download atau Google Drive sebelum memperbarui aplikasi.</p><div class="backup-actions"><button class="primary" onclick="exportBackup()">⬇ Ekspor data</button><button onclick="document.getElementById(\'backupFile\').click()">⬆ Impor data</button></div><input id="backupFile" type="file" accept=".json,application/json" style="display:none" onchange="importBackupFile(event)"><p class="desc" style="margin-top:12px">Data tersimpan di penyimpanan privat aplikasi dan biasanya tetap ada saat aplikasi diperbarui dengan paket yang sama. Data dapat hilang jika aplikasi dihapus, data aplikasi dibersihkan, atau perangkat direset. Simpan cadangan secara berkala.</p></div></section>'
+ s=s.replace('<section class="section" id="page-transactions">',settings_html+'<section class="section" id="page-transactions">',1)
+# Add settings entry in the mobile navigation and make Record the center button.
+nav_old='<button onclick="openTransaction()"><span>⊕</span><span>Catat</span></button>'
+nav_new='<button data-page="settings"><span>⚙</span><span>Setelan</span></button><button data-action="record" onclick="openTransaction()"><span>＋</span><span>Catat</span></button>'
+s=s.replace(nav_old,nav_new,1)
+# Insert backup and modal behavior functions into the app script before it closes.
+backup_js = r"""
+function setModalBodyLock(){const open=[...document.querySelectorAll('.modal-backdrop')].some(el=>getComputedStyle(el).display!=='none');if(open){if(!document.body.classList.contains('modal-open')){document.body.dataset.scrollY=String(window.scrollY);document.body.classList.add('modal-open');document.body.style.top='-'+(window.scrollY||0)+'px'}}else if(document.body.classList.contains('modal-open')){const y=Number(document.body.dataset.scrollY)||0;document.body.classList.remove('modal-open');document.body.style.top='';window.scrollTo(0,y)}}
+const _ruCloseModal=window.closeModal;
+window.closeModal=function(id){if(typeof _ruCloseModal==='function')_ruCloseModal(id);else{const el=document.getElementById(id);if(el)el.style.display='none'}setTimeout(setModalBodyLock,0)};
+const _ruOpenTransaction=window.openTransaction;
+window.openTransaction=function(id){if(typeof _ruOpenTransaction==='function')_ruOpenTransaction(id);setTimeout(setModalBodyLock,0)};
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.closest('.modal-backdrop'))setTimeout(setModalBodyLock,0);if(b.dataset.page==='settings'){e.preventDefault();if(typeof go==='function')go('settings');document.querySelectorAll('#mobileBottomNav button').forEach(x=>x.classList.toggle('active',x===b));}});
+document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(setModalBodyLock).observe(el,{attributes:true,attributeFilter:['style','class']}));
+function exportBackup(){try{const payload={app:'RuangUsaha',formatVersion:1,exportedAt:new Date().toISOString(),data:state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='RuangUsaha-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);showToast('Cadangan disiapkan. Pastikan file tersimpan di perangkat.')}catch(err){alert('Ekspor gagal: '+err.message)}}
+function importBackupFile(event){const file=event.target.files&&event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(String(reader.result||'')),d=parsed.data||parsed;if(!d||!Array.isArray(d.transactions)||!Array.isArray(d.accounts)||!Array.isArray(d.categories))throw new Error('Format file cadangan tidak dikenali');if(!confirm('Impor akan mengganti data saat ini. Pastikan Anda sudah mengekspor cadangan data terbaru. Lanjutkan?'))return;state={...state,...d,accounts:d.accounts,transactions:d.transactions,categories:d.categories,businesses:Array.isArray(d.businesses)?d.businesses:[],products:Array.isArray(d.products)?d.products:[]};save();if(typeof render==='function')render();showToast('Data berhasil dipulihkan.')}catch(err){alert('File cadangan tidak valid atau rusak: '+err.message)}finally{event.target.value=''}};reader.onerror=()=>alert('File tidak dapat dibaca.');reader.readAsText(file)}
+"""
+# Add just before the final script closing tag; preserve other script tags.
+idx=s.lower().rfind('</script>')
+if idx<0: raise SystemExit("No script closing tag found")
+s=s[:idx]+backup_js+s[idx:]
+# Ensure navigation action handler knows settings page and scroll lock after every modal open.
+s=s.replace("p.write_text(s)","p.write_text(s)",1)
+
 p.write_text(s)
 print("Feature upgrade applied",len(s))
