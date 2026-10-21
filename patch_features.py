@@ -57,7 +57,7 @@ document.getElementById('productBusinessFilter').addEventListener('change',rende
 s=s.replace("function renderBusinesses(){",productjs+"\nfunction renderBusinesses(){",1)
 s=s.replace("renderCategories();renderBusinesses()}","renderCategories();renderBusinesses();renderProducts()}",1)
 # Category editing uses a compact edit prompt while preserving the category's income/expense type.
-s=s.replace("function deleteCategory(id){","function editCategory(id){const c=state.categories.find(x=>x.id===id);if(!c)return;const name=prompt('Ubah nama kategori:',c.name);if(!name||!name.trim())return;if(state.categories.some(x=>x.type===c.type&&x.id!==id&&x.name.toLowerCase()===name.trim().toLowerCase()))return showToast('Kategori sudah ada.');c.name=name.trim();save();showToast('Kategori diperbarui.')}\\nfunction deleteCategory(id){",1)
+s=s.replace("function deleteCategory(id){","function editCategory(id){const c=state.categories.find(x=>x.id===id);if(!c)return;const name=prompt('Ubah nama kategori:',c.name);if(!name||!name.trim())return;if(state.categories.some(x=>x.type===c.type&&x.id!==id&&x.name.toLowerCase()===name.trim().toLowerCase()))return showToast('Kategori sudah ada.');c.name=name.trim();save();showToast('Kategori diperbarui.')}\nfunction deleteCategory(id){",1)
 # Replace category list renderer with buttons built by concatenation.
 start=s.find("function renderCategories(){")
 end=s.find("\nfunction editCategory",start)
