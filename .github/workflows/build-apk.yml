@@ -20,6 +20,22 @@ jobs:
           unzip -t RuangUsahaAndroid_Project.zip
           unzip -q RuangUsahaAndroid_Project.zip -d .
           test -f RuangUsahaAndroid/app/src/main/assets/index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path("RuangUsahaAndroid/app/src/main/assets/index.html")
+          source = html.read_text()
+          css = Path("android-mobile.css").read_text()
+          if "Mobile-first Android layout improvements" not in source:
+              source = source.replace("</style>", css + "\\n</style>", 1)
+          html.write_text(source)
+          java = Path("RuangUsahaAndroid/app/src/main/java/id/ruangkas/app/MainActivity.java")
+          code = java.read_text()
+          marker = "settings.setDomStorageEnabled(true);"
+          extra = marker + "\\n        settings.setUseWideViewPort(true);\\n        settings.setLoadWithOverviewMode(false);\\n        settings.setTextZoom(100);\\n        settings.setSupportZoom(false);\\n        settings.setBuiltInZoomControls(false);\\n        settings.setDisplayZoomControls(false);"
+          if "settings.setUseWideViewPort(true);" not in code:
+              code = code.replace(marker, extra, 1)
+          java.write_text(code)
+          PY
 
       - name: Set up Java
         uses: actions/setup-java@v4
