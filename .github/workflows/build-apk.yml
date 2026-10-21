@@ -39,6 +39,22 @@ jobs:
           python3 patch_mobile.py
           python3 patch_features.py
 
+      - name: Validate inline JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path("RuangUsahaAndroid/app/src/main/assets/index.html").read_text()
+          scripts = re.findall(r'<script\\b([^>]*)>(.*?)</script\\s*>', html, flags=re.I | re.S)
+          inline = [body for attrs, body in scripts if not re.search(r'\\bsrc\\s*=', attrs, flags=re.I) and body.strip()]
+          if not inline:
+              raise SystemExit("No inline JavaScript found to validate")
+          for index, body in enumerate(inline, 1):
+              Path(f"/tmp/ruangusaha-inline-{index}.js").write_text(body)
+          print(f"Extracted {len(inline)} inline script(s) for syntax validation")
+          PY
+          for js in /tmp/ruangusaha-inline-*.js; do node --check "$js"; done
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
