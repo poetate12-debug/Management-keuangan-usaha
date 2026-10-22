@@ -46,7 +46,7 @@ Aplikasi menyimpan data transaksi dan pengaturan secara lokal pada WebView (loca
 - Buat cadangan melalui **Pengaturan** sebelum pembaruan besar atau pemindahan perangkat.
 - **Ekspor Data** membuat file JSON berisi usaha, akun, kategori, produk, dan transaksi.
 - **Impor Data** membaca file JSON cadangan dan mengganti data yang sedang ada; selalu ekspor data saat ini terlebih dahulu.
-- **Ekspor Excel** tersedia dari Pengaturan untuk membuat laporan spreadsheet.
+- **Ekspor Excel** tersedia dari Pengaturan dan menghasilkan file `.xls` yang dapat dibuka di Excel/WPS, dengan lembar Transaksi, Usaha, Akun, Kategori, Produk, dan HPP. Cadangan JSON tetap terpisah untuk memulihkan seluruh data.
 - Simpan file cadangan di folder Download atau lokasi aman lain. Uji impor menggunakan salinan cadangan sebelum mengandalkannya.
 - Tidak ada sinkronisasi cloud otomatis.
 
