@@ -140,5 +140,112 @@ s=s[:idx]+backup_js+s[idx:]
 # Ensure navigation action handler knows settings page and scroll lock after every modal open.
 s=s.replace("p.write_text(s)","p.write_text(s)",1)
 
+
+# Per-business categories and transaction-type-first flow (v4).
+v4 = r"""
+<style>
+#txTypePicker .modal{max-width:520px}#txTypePicker .type-choice{width:100%;display:flex;align-items:center;gap:14px;padding:16px;margin:8px 0;text-align:left;border:1px solid var(--line);border-radius:16px;background:#fff}
+#txTypePicker .type-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:13px;background:#eaf0ff;color:#4655ca;font-size:23px;flex-shrink:0}
+.biz-settings-panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;margin:16px 0}
+.biz-cat-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+</style>
+<div class="modal-backdrop" id="txTypePicker" style="display:none"><div class="modal"><div class="modal-head"><div><h2>Catat transaksi</h2><div class="desc">Pilih jenis transaksi terlebih dahulu.</div></div><button type="button" onclick="closeModal('txTypePicker')">✕</button></div>
+<button type="button" class="type-choice" onclick="startTypedTransaction('income')"><span class="type-icon">↙</span><span><strong>Pemasukan</strong><small class="desc">Pilih usaha, lalu isi pemasukan.</small></span></button>
+<button type="button" class="type-choice" onclick="startTypedTransaction('expense')"><span class="type-icon">↗</span><span><strong>Pengeluaran</strong><small class="desc">Pilih usaha, lalu isi pengeluaran.</small></span></button>
+<button type="button" class="type-choice" onclick="startTypedTransaction('transfer')"><span class="type-icon">⇄</span><span><strong>Transfer antar dompet</strong><small class="desc">Pilih dompet asal dan tujuan.</small></span></button>
+</div>
+<div class="biz-settings-panel" id="businessCategorySettings">
+<div class="panel-head"><div><h2>Pengaturan per usaha</h2><div class="desc">Kategori dan produk dikelola terpisah untuk setiap usaha.</div></div></div>
+<div class="field"><label>Pilih usaha</label><select id="bizSettingsBusiness"></select></div>
+<div class="panel-head" style="margin-top:15px"><div><h3>Kategori usaha</h3><div class="desc">Kategori pemasukan dan pengeluaran khusus usaha terpilih.</div></div><button type="button" class="primary" onclick="openBusinessCategory()">＋ Kategori</button></div>
+<div id="bizSettingsCategories"></div>
+</div>
+<div class="modal-backdrop" id="bizCategoryModal" style="display:none"><div class="modal"><div class="modal-head"><h2 id="bizCategoryTitle">Kategori usaha</h2><button type="button" onclick="closeModal('bizCategoryModal')">✕</button></div>
+<form id="bizCategoryForm"><input type="hidden" id="bizCategoryId"><div class="field"><label>Usaha</label><select id="bizCategoryBusiness" required></select></div><div class="field"><label>Jenis kategori</label><select id="bizCategoryType"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div><div class="field"><label>Nama kategori</label><input id="bizCategoryName" required maxlength="70" placeholder="Contoh: Cetak foto"></div><div class="form-actions"><button type="button" onclick="closeModal('bizCategoryModal')">Batal</button><button type="submit" class="primary">Simpan kategori</button></div></form>
+</div></div>
+<script>
+(function(){
+ const oldOpen=window.openTransaction;
+ let nextType='income';
+ window.openTransaction=function(id){if(id){oldOpen(id);return}document.getElementById('txTypePicker').style.display='flex'};
+ window.startTypedTransaction=function(type){
+   nextType=type;
+   closeModal('txTypePicker');
+   if(type==='transfer'){
+     openTransactionForm('', '');
+     document.getElementById('fType').value='transfer';
+     updateTxForm();
+     document.getElementById('fBusiness').value='';
+     document.getElementById('txModal').style.display='flex';
+     setTimeout(()=>{if(window.setModalBodyLock) setModalBodyLock()},0);
+   }else{
+     renderBusinessPicker();
+     const host=document.getElementById('businessPickerCards');
+     host.querySelectorAll('button').forEach(b=>{if(!b.textContent.includes('Operasional umum'))b.setAttribute('onclick',b.getAttribute('onclick').replace('chooseBusiness(','chooseBusinessTyped('))});
+     const general=host.parentElement.querySelector('button[onclick*="__general__"]');
+     if(general)general.setAttribute('onclick',"chooseBusinessTyped('__general__')");
+     document.getElementById('businessPickerModal').style.display='flex';
+   }
+ };
+ window.chooseBusinessTyped=function(id){
+   closeModal('businessPickerModal');
+   openTransactionForm('',id==='__general__'?'':id);
+   document.getElementById('fType').value=nextType;
+   updateTxForm();
+   if(window.setModalBodyLock)setModalBodyLock();
+ };
+ // Transfer does not require an enterprise; both source and destination wallets are selected in the form.
+ const oldUpdate=window.updateTxForm;
+ window.updateTxForm=function(){
+   oldUpdate();
+   const type=document.getElementById('fType').value,bid=document.getElementById('fBusiness').value,cat=document.getElementById('fCategory');
+   if(!cat)return;
+   const previous=cat.value;
+   const eligible=(state.categories||[]).filter(c=>c.type===type && (type==='transfer' || !c.businessId || c.businessId===bid));
+   cat.innerHTML=eligible.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
+   if(eligible.some(c=>c.id===previous))cat.value=previous;
+ };
+ function businessSelectOptions(selected){return (state.businesses||[]).filter(b=>!b.archived).map(b=>'<option value="'+esc(b.id)+'" '+(b.id===selected?'selected':'')+'>'+esc(b.name)+'</option>').join('')}
+ function selectedBiz(){return document.getElementById('bizSettingsBusiness').value}
+ window.renderBusinessCategorySettings=function(){
+   const sel=document.getElementById('bizSettingsBusiness'),old=sel.value;
+   sel.innerHTML=businessSelectOptions(old);
+   if(!sel.value&&sel.options.length)sel.selectedIndex=0;
+   const bid=sel.value;
+   document.getElementById('bizCategoryBusiness').innerHTML=businessSelectOptions(bid);
+   const cats=(state.categories||[]).filter(c=>c.businessId===bid);
+   document.getElementById('bizSettingsCategories').innerHTML=['income','expense'].map(type=>'<h4 style="margin:12px 0 4px">'+(type==='income'?'PEMASUKAN':'PENGELUARAN')+'</h4>'+cats.filter(c=>c.type===type).map(c=>'<div class="biz-cat-row"><span>'+esc(c.name)+'</span><span><button type="button" class="small" onclick="openBusinessCategory(&quot;'+esc(c.id)+'&quot;)">Edit</button> <button type="button" class="small danger" onclick="deleteBusinessCategory(&quot;'+esc(c.id)+'&quot;)">Hapus</button></span></div>').join('')||'<div class="desc">Belum ada kategori untuk usaha ini.</div>').join('');
+   const pf=document.getElementById('productBusinessFilter');if(pf&&bid){pf.value=bid;if(window.renderProducts)renderProducts()}
+ };
+ window.openBusinessCategory=function(id){
+   const sel=document.getElementById('bizCategoryBusiness');sel.innerHTML=businessSelectOptions(selectedBiz());
+   document.getElementById('bizCategoryForm').reset();document.getElementById('bizCategoryId').value='';
+   document.getElementById('bizCategoryTitle').textContent=id?'Edit kategori':'Tambah kategori';
+   if(id){const c=state.categories.find(x=>x.id===id);if(!c)return;document.getElementById('bizCategoryId').value=c.id;sel.value=c.businessId;document.getElementById('bizCategoryType').value=c.type;document.getElementById('bizCategoryName').value=c.name}
+   document.getElementById('bizCategoryModal').style.display='flex';
+ };
+ window.deleteBusinessCategory=function(id){
+   if(state.transactions.some(t=>t.categoryId===id))return alert('Kategori sudah digunakan transaksi. Edit nama kategori jika ingin mempertahankannya.');
+   if(confirm('Hapus kategori dari usaha ini?')){state.categories=state.categories.filter(c=>c.id!==id);save();renderBusinessCategorySettings();updateTxForm()}
+ };
+ document.getElementById('bizCategoryForm').addEventListener('submit',e=>{
+   e.preventDefault();const id=document.getElementById('bizCategoryId').value,businessId=document.getElementById('bizCategoryBusiness').value,type=document.getElementById('bizCategoryType').value,name=document.getElementById('bizCategoryName').value.trim();
+   if(!businessId||!name)return alert('Pilih usaha dan nama kategori.');
+   if(state.categories.some(c=>c.id!==id&&c.businessId===businessId&&c.type===type&&c.name.toLowerCase()===name.toLowerCase()))return alert('Kategori dengan nama tersebut sudah ada di usaha ini.');
+   if(id){const c=state.categories.find(x=>x.id===id);if(c)Object.assign(c,{businessId,type,name})}
+   else state.categories.push({id:uid(),businessId,type,name});
+   save();closeModal('bizCategoryModal');renderBusinessCategorySettings();updateTxForm();showToast('Kategori usaha disimpan.');
+ });
+ document.getElementById('bizSettingsBusiness').addEventListener('change',renderBusinessCategorySettings);
+ const oldRender=window.renderBusinesses;
+ if(typeof oldRender==='function')window.renderBusinesses=function(){oldRender();renderBusinessCategorySettings()};
+ document.addEventListener('DOMContentLoaded',renderBusinessCategorySettings);
+ setTimeout(renderBusinessCategorySettings,100);
+})();
+</script>
+"""
+if (!s.includes("</body>")) throw new Error("body closing tag not found");
+s=s.replace("</body>",v4+"</body>");
+
 p.write_text(s)
 print("Feature upgrade applied",len(s))
