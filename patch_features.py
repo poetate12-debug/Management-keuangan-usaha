@@ -1306,7 +1306,7 @@ if "RuangUsaha finance fixes v1" not in s:
 #ruMonthlyBusinessReport .ru-report-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
 #ruMonthlyBusinessReport .ru-report-controls label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
 #ruMonthlyBusinessReport .ru-report-controls input,#ruMonthlyBusinessReport .ru-report-controls select{width:100%;min-width:0;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:inherit}
-#ruMonthlyBusinessReport .ru-report-total{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+#ruMonthlyBusinessReport .ru-report-total{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
 #ruMonthlyBusinessReport .ru-report-metric{border:1px solid var(--line);border-radius:13px;padding:10px;min-width:0;background:#fff}
 #ruMonthlyBusinessReport .ru-report-metric small{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}
 #ruMonthlyBusinessReport .ru-report-metric strong{display:block;font-size:clamp(12px,3.6vw,18px);overflow-wrap:anywhere}
@@ -1319,7 +1319,7 @@ if "RuangUsaha finance fixes v1" not in s:
 #ruMonthlyBusinessReport .ru-month-tx strong{white-space:nowrap;font-size:12px}
 #bizCategoryModal{z-index:10000!important}
 #bizCategoryModal .modal{z-index:10001!important}
-@media(max-width:700px){#ruMonthlyBusinessReport .ru-report-controls{grid-template-columns:1fr}#ruMonthlyBusinessReport .ru-report-total{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#ruMonthlyBusinessReport .ru-report-metric{padding:8px}}
+@media(max-width:700px){#ruMonthlyBusinessReport .ru-report-controls{grid-template-columns:1fr}#ruMonthlyBusinessReport .ru-report-total{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}#ruMonthlyBusinessReport .ru-report-metric{padding:8px}}
 """
     if "</style>" not in s:
         raise SystemExit("Tidak menemukan penutup style untuk patch laporan")
@@ -1387,18 +1387,18 @@ if "RuangUsaha finance fixes v1" not in s:
     var selected=document.getElementById('ruReportBusiness').value;
     var txs=transactions().filter(function(t){return month && monthKey(t)===month;});
     var biz=businesses().filter(function(b){return !selected || b.id===selected;});
-    var totals={inc:0,out:0};
-    var reportTxs=txs.filter(function(t){return !t.businessId || biz.some(function(b){return b.id===t.businessId;});});
-    reportTxs.forEach(function(t){if(t.type==='income')totals.inc+=Number(t.amount)||0;else if(t.type==='expense')totals.out+=Number(t.amount)||0;});
+    var totals={inc:0,out:0,bon:0};
+    var reportTxs=selected?txs.filter(function(t){return t.businessId===selected;}):txs;
+    reportTxs.forEach(function(t){if(t.type==='income')totals.inc+=Number(t.amount)||0;else if(t.type==='expense'&&categoryText(t.categoryId).toLowerCase()==='bon')totals.bon+=Number(t.amount)||0;else if(t.type==='expense')totals.out+=Number(t.amount)||0;});
     var summary=document.getElementById('ruReportSummary');
-    summary.innerHTML='<div class="ru-report-total"><div class="ru-report-metric"><small>Total pemasukan</small><strong style="color:var(--green)">'+rupiah(totals.inc)+'</strong></div><div class="ru-report-metric"><small>Total pengeluaran</small><strong style="color:var(--red)">'+rupiah(totals.out)+'</strong></div><div class="ru-report-metric"><small>Saldo bersih</small><strong>'+rupiah(totals.inc-totals.out)+'</strong></div></div>';
+    summary.innerHTML='<div class="ru-report-total"><div class="ru-report-metric"><small>Total pemasukan</small><strong style="color:var(--green)">'+rupiah(totals.inc)+'</strong></div><div class="ru-report-metric"><small>Pengeluaran</small><strong style="color:var(--red)">'+rupiah(totals.out)+'</strong></div><div class="ru-report-metric"><small>BON</small><strong>'+rupiah(totals.bon)+'</strong></div><div class="ru-report-metric"><small>Saldo bersih</small><strong>'+rupiah(totals.inc-totals.out-totals.bon)+'</strong></div></div>';
     var cards='';
     biz.forEach(function(b){
       var items=txs.filter(function(t){return t.businessId===b.id && (t.type==='income'||t.type==='expense');})
         .sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
-      var inc=0,out=0;
-      items.forEach(function(t){if(t.type==='income')inc+=Number(t.amount)||0;else out+=Number(t.amount)||0;});
-      cards+='<div class="ru-business-month-card"><div class="ru-business-month-head"><h3>'+escReport(b.name)+'</h3><strong>'+rupiah(inc-out)+'</strong></div><div class="ru-report-total"><div class="ru-report-metric"><small>Pemasukan</small><strong style="color:var(--green)">'+rupiah(inc)+'</strong></div><div class="ru-report-metric"><small>Pengeluaran</small><strong style="color:var(--red)">'+rupiah(out)+'</strong></div><div class="ru-report-metric"><small>Transaksi</small><strong>'+items.length+'</strong></div></div>';
+      var inc=0,out=0,bon=0;
+      items.forEach(function(t){if(t.type==='income')inc+=Number(t.amount)||0;else if(categoryText(t.categoryId).toLowerCase()==='bon')bon+=Number(t.amount)||0;else out+=Number(t.amount)||0;});
+      cards+='<div class="ru-business-month-card"><div class="ru-business-month-head"><h3>'+escReport(b.name)+'</h3><strong>'+rupiah(inc-out-bon)+'</strong></div><div class="ru-report-total"><div class="ru-report-metric"><small>Pemasukan</small><strong style="color:var(--green)">'+rupiah(inc)+'</strong></div><div class="ru-report-metric"><small>Pengeluaran</small><strong style="color:var(--red)">'+rupiah(out)+'</strong></div><div class="ru-report-metric"><small>BON</small><strong>'+rupiah(bon)+'</strong></div><div class="ru-report-metric"><small>Transaksi</small><strong>'+items.length+'</strong></div></div>';
       if(items.length){
         items.forEach(function(t){
           cards+='<div class="ru-month-tx"><div><strong>'+escReport(t.note || typeText(t.type))+'</strong><small>'+escReport(dateText(t))+' · '+escReport(categoryText(t.categoryId)||typeText(t.type))+'</small></div><strong style="color:'+(t.type==='expense'?'var(--red)':'var(--green)')+'">'+(t.type==='expense'?'−':'+')+rupiah(t.amount)+'</strong></div>';
@@ -1408,8 +1408,8 @@ if "RuangUsaha finance fixes v1" not in s:
     });
     var general=txs.filter(function(t){return !t.businessId && (t.type==='income'||t.type==='expense');});
     if(!selected && general.length){
-      var gi=0,go=0;general.forEach(function(t){if(t.type==='income')gi+=Number(t.amount)||0;else go+=Number(t.amount)||0;});
-      cards+='<div class="ru-business-month-card"><div class="ru-business-month-head"><h3>Operasional umum</h3><strong>'+rupiah(gi-go)+'</strong></div><div class="ru-report-total"><div class="ru-report-metric"><small>Pemasukan</small><strong>'+rupiah(gi)+'</strong></div><div class="ru-report-metric"><small>Pengeluaran</small><strong>'+rupiah(go)+'</strong></div><div class="ru-report-metric"><small>Transaksi</small><strong>'+general.length+'</strong></div></div></div>';
+      var gi=0,go=0,gb=0;general.forEach(function(t){if(t.type==='income')gi+=Number(t.amount)||0;else if(categoryText(t.categoryId).toLowerCase()==='bon')gb+=Number(t.amount)||0;else go+=Number(t.amount)||0;});
+      cards+='<div class="ru-business-month-card"><div class="ru-business-month-head"><h3>Operasional umum</h3><strong>'+rupiah(gi-go-gb)+'</strong></div><div class="ru-report-total"><div class="ru-report-metric"><small>Pemasukan</small><strong>'+rupiah(gi)+'</strong></div><div class="ru-report-metric"><small>Pengeluaran</small><strong>'+rupiah(go)+'</strong></div><div class="ru-report-metric"><small>BON</small><strong>'+rupiah(gb)+'</strong></div><div class="ru-report-metric"><small>Transaksi</small><strong>'+general.length+'</strong></div></div></div>';
     }
     document.getElementById('ruReportBusinessCards').innerHTML=cards || '<div class="desc">Belum ada usaha. Tambahkan usaha terlebih dahulu.</div>';
   }
