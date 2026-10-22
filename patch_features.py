@@ -244,8 +244,8 @@ v4 = r"""
 })();
 </script>
 """
-if (!s.includes("</body>")) throw new Error("body closing tag not found");
-s=s.replace("</body>",v4+"</body>");
+if "</body>" not in s: raise SystemExit("body closing tag not found")
+s=s.replace("</body>",v4+"</body>",1)
 
 p.write_text(s)
 print("Feature upgrade applied",len(s))
