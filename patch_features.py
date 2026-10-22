@@ -1004,8 +1004,10 @@ v7 = r"""
   }
   window.closeBusinessSub=function(){
     const top=ruUiStack[ruUiStack.length-1];
-    if(top&&top.kind==='subpage'&&history.state&&history.state.ruApp){ruPendingUiBack=true;history.back()}
-    else ruRestoreDetail(currentBusiness);
+    if(top&&top.kind==='subpage'&&history.state&&history.state.ruApp){
+      ruRestoreDetail(top.id);
+      ruPendingUiBack=true;history.back();
+    }else ruRestoreDetail(currentBusiness);
   };
   window.addEventListener('popstate',()=>{
     const entry=ruUiStack.pop();
