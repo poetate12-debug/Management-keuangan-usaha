@@ -423,6 +423,185 @@ v5 = r"""
 </script>
 """
 if "</body>" not in s: raise SystemExit("body closing tag not found before v5")
+s=
 s=s.replace("</body>",v5+"</body>",1)
+# Transaction form cards, nested business settings pages, and HPP calculator.
+v6 = r"""
+<style>
+/* Transaction context cards */
+#txModal #ruTxContext{display:grid;gap:9px;margin:0 0 12px;flex-shrink:0}
+#ruTxContext .ru-tx-business{display:flex;align-items:center;gap:14px;padding:17px;border-radius:18px;background:linear-gradient(120deg,#172c64,#5368d7);color:white;box-shadow:0 7px 18px #5264ce28}
+#ruTxContext .ru-tx-business-icon{height:58px;width:58px;display:grid;place-items:center;flex:0 0 58px;border-radius:17px;background:#ffffff24;font-size:32px}
+#ruTxContext .ru-tx-eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:1px;opacity:.8}
+#ruTxContext .ru-tx-business-name{font-size:20px;font-weight:850;line-height:1.2;margin-top:4px;overflow-wrap:anywhere}
+#ruTxContext .ru-tx-type{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:15px;border:1px solid transparent}
+#ruTxContext .ru-tx-type-icon{height:40px;width:40px;display:grid;place-items:center;border-radius:12px;font-size:22px;font-weight:850}
+#ruTxContext .ru-tx-type strong{font-size:15px;display:block}
+#ruTxContext .ru-tx-type small{font-size:11px;display:block;margin-top:3px;opacity:.78}
+#ruTxContext .ru-tx-income{background:#e4f8ee;border-color:#c6edd8;color:#087647}
+#ruTxContext .ru-tx-income .ru-tx-type-icon{background:#c6efd9}
+#ruTxContext .ru-tx-expense{background:#fff0ef;border-color:#f4d1cf;color:#b72f38}
+#ruTxContext .ru-tx-expense .ru-tx-type-icon{background:#ffd9d7}
+#ruTxContext .ru-tx-transfer{background:#edf1ff;border-color:#d5dcff;color:#4655be}
+#ruTxContext .ru-tx-transfer .ru-tx-type-icon{background:#dbe2ff}
+#businessDetailLanding .business-menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+#businessDetailLanding .business-menu-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px 12px;text-align:left;min-height:106px;display:flex;flex-direction:column;gap:9px}
+#businessDetailLanding .business-menu-card .menu-symbol{width:40px;height:40px;display:grid;place-items:center;background:#eef1ff;color:#4f5dc4;border-radius:13px;font-size:21px}
+#businessDetailLanding .business-menu-card strong{font-size:14px}
+#businessSubPage .business-sub-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+#businessSubPage .business-sub-head h2{font-size:19px;margin:0}
+#businessSubPage #businessDetailSettings{padding:0}
+#businessSubPage .biz-settings-panel{margin:0;background:transparent;border:0;padding:0}
+#businessSubPage .hpp-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;margin:12px 0}
+#businessSubPage .hpp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#businessSubPage .hpp-result{background:#eff3ff;color:#3446ac;border-radius:14px;padding:14px;margin-top:12px}
+#businessSubPage .hpp-result strong{font-size:21px;display:block;margin-top:6px}
+#businessSubPage .hpp-history-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+#businessSubPage .hpp-history-row small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+@media(max-width:700px){
+ #txModal #ruTxContext .ru-tx-business{padding:15px;border-radius:17px}
+ #ruTxContext .ru-tx-business-icon{width:52px;height:52px;flex-basis:52px;font-size:28px}
+ #ruTxContext .ru-tx-business-name{font-size:18px}
+ #businessDetailLanding .business-menu-card{min-height:100px;padding:12px}
+ #businessSubPage .hpp-grid{grid-template-columns:1fr}
+}
+</style>
+<script>
+(function(){
+ const normName=v=>String(v||'').trim().toLowerCase();
+ function iconBusiness(b){
+   const n=normName(b&&b.name);
+   if(/studio|foto|fotografi|cetak/.test(n))return '📷';
+   if(/wifi|internet|net/.test(n))return '📡';
+   if(/cctv|alarm|security|sentinel|keamanan/.test(n))return '🛡️';
+   if(/delivery|gelis|antar|kurir/.test(n))return '🛵';
+   return '🏪';
+ }
+ function txTypeMeta(type){
+   if(type==='income')return {title:'Pemasukan',sub:'Uang masuk ke usaha',icon:'↙',cls:'income'};
+   if(type==='expense')return {title:'Pengeluaran',sub:'Biaya yang dikeluarkan usaha',icon:'↗',cls:'expense'};
+   return {title:'Transfer antar dompet',sub:'Pindahkan saldo dari satu dompet ke dompet lain',icon:'⇄',cls:'transfer'};
+ }
+ function drawTxContext(){
+   const modal=document.getElementById('txModal'),typeEl=document.getElementById('fType'),bizEl=document.getElementById('fBusiness');
+   if(!modal||!typeEl||!bizEl)return;
+   const form=typeEl.closest('form');if(!form)return;
+   const type=typeEl.value,meta=txTypeMeta(type),biz=(state.businesses||[]).find(b=>b.id===bizEl.value);
+   const typeField=typeEl.closest('.field'),bizField=bizEl.closest('.field');
+   if(typeField)typeField.style.display='none';
+   if(bizField)bizField.style.display='none';
+   let box=document.getElementById('ruTxContext');
+   if(!box){box=document.createElement('div');box.id='ruTxContext';form.insertBefore(box,form.firstChild)}
+   const businessCard=type==='transfer'?'':'<div class="ru-tx-business"><div class="ru-tx-business-icon">'+iconBusiness(biz)+'</div><div style="min-width:0"><div class="ru-tx-eyebrow">Usaha yang digunakan</div><div class="ru-tx-business-name">'+esc(biz?biz.name:'Usaha belum dipilih')+'</div></div></div>';
+   box.innerHTML=businessCard+'<div class="ru-tx-type ru-tx-'+meta.cls+'"><div class="ru-tx-type-icon">'+meta.icon+'</div><div><strong>'+meta.title+'</strong><small>'+meta.sub+'</small></div></div>';
+ }
+ const origOpenForm=window.openTransactionForm;
+ if(typeof origOpenForm==='function')window.openTransactionForm=function(id,presetBusiness){origOpenForm(id,presetBusiness);setTimeout(drawTxContext,0)};
+ const origTyped=window.startTypedTransaction;
+ if(typeof origTyped==='function')window.startTypedTransaction=function(type){origTyped(type);setTimeout(drawTxContext,80)};
+ const origChoose=window.chooseBusinessTyped;
+ if(typeof origChoose==='function')window.chooseBusinessTyped=function(id){origChoose(id);setTimeout(drawTxContext,80)};
+ document.getElementById('txModal')&&new MutationObserver(()=>setTimeout(drawTxContext,0)).observe(document.getElementById('txModal'),{attributes:true,attributeFilter:['style','class']});
+ document.getElementById('fType')&&document.getElementById('fType').addEventListener('change',drawTxContext);
+ document.getElementById('fBusiness')&&document.getElementById('fBusiness').addEventListener('change',drawTxContext);
+
+ // Business pages: the business landing page shows statistics and links only.
+ const origOpenBusiness=window.openBusinessDetail;
+ const origCloseBusiness=window.closeBusinessDetail;
+ let activeBizId=null,activeSub='overview';
+ function businessById(id){return (state.businesses||[]).find(b=>b.id===id)}
+ function fmtDate(v){return String(v||'').slice(0,10)}
+ function bizTx(id){return (state.transactions||[]).filter(t=>t.businessId===id)}
+ function recentRows(id){
+   return bizTx(id).slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,6).map(t=>'<div class="business-detail-transaction"><div><strong>'+esc(t.note||(t.type==='income'?'Pemasukan':t.type==='expense'?'Pengeluaran':'Transfer'))+'</strong><small>'+esc(fmtDate(t.date))+' · '+esc(t.type==='transfer'?'Transfer':(typeof categoryName==='function'?categoryName(t.categoryId):''))+'</small></div><strong style="white-space:nowrap;color:'+(t.type==='income'?'var(--green)':t.type==='expense'?'var(--red)':'var(--blue)')+'">'+(t.type==='expense'?'−':t.type==='income'?'+':'')+money(t.amount)+'</strong></div>').join('')||'<div class="desc">Belum ada transaksi untuk usaha ini.</div>'
+ }
+ function refreshBusinessOverview(){
+   const b=businessById(activeBizId);if(!b)return;
+   const month=typeof monthNow==='function'?monthNow():new Date().toISOString().slice(0,7);
+   const monthTx=bizTx(activeBizId).filter(t=>String(t.date||'').startsWith(month));
+   const st=totals(monthTx);
+   const target=document.getElementById('businessCustomStats');
+   if(target)target.innerHTML='<div class="business-stat"><small>Pemasukan bulan ini</small><strong style="color:var(--green)">'+money(st.inc)+'</strong></div><div class="business-stat"><small>Pengeluaran bulan ini</small><strong style="color:var(--red)">'+money(st.out)+'</strong></div><div class="business-stat"><small>Arus kas bersih</small><strong style="color:var(--blue)">'+money(st.net)+'</strong></div><div class="business-stat"><small>Total transaksi</small><strong>'+bizTx(activeBizId).length+'</strong></div>';
+   const rt=document.getElementById('businessCustomRecent');if(rt)rt.innerHTML=recentRows(activeBizId);
+ }
+ function closeBusinessSub(){
+   activeSub='overview';
+   const detail=document.getElementById('businessDetailView');
+   if(detail){
+     const oldPanel=document.getElementById('businessCategorySettings'),parking=document.getElementById('businessSettingsParking');
+     if(oldPanel&&parking)parking.appendChild(oldPanel);
+     oldPanel&&(oldPanel.style.display='none');
+     detail.innerHTML=detailLandingHtml();
+   }
+   refreshBusinessOverview();
+   window.scrollTo(0,0);
+ }
+ function detailLandingHtml(){
+   const b=businessById(activeBizId);if(!b)return '<button class="small" onclick="closeBusinessDetail()">← Kembali</button>';
+   return '<div class="business-detail-top"><button type="button" class="small business-detail-back" onclick="closeBusinessDetail()">← Kembali</button><div class="business-detail-logo">'+iconBusiness(b)+'</div><div style="min-width:0"><h1 class="business-detail-title">'+esc(b.name)+'</h1><div class="business-detail-kind">'+esc(b.type||'Usaha')+'</div></div></div><div class="desc">Ringkasan kinerja usaha untuk bulan berjalan.</div><div class="business-stat-grid" id="businessCustomStats"></div><div class="business-detail-actions"><button type="button" class="primary" id="businessDetailIncome">＋ Pemasukan</button><button type="button" id="businessDetailExpense">－ Pengeluaran</button></div><h2 class="business-section-heading">Pengaturan dan alat usaha</h2><div class="business-menu-grid"><button type="button" class="business-menu-card" onclick="openBusinessSubPage(\'categories\')"><span class="menu-symbol">▤</span><strong>Kategori usaha</strong></button><button type="button" class="business-menu-card" onclick="openBusinessSubPage(\'products\')"><span class="menu-symbol">▣</span><strong>Produk usaha</strong></button><button type="button" class="business-menu-card" onclick="openBusinessSubPage(\'hpp\')"><span class="menu-symbol">∑</span><strong>Perhitungan HPP</strong></button></div><h2 class="business-section-heading">Transaksi terbaru</h2><div id="businessCustomRecent"></div>';
+ }
+ window.openBusinessDetail=function(id){
+   if(typeof origOpenBusiness==='function')origOpenBusiness(id);
+   activeBizId=id;activeSub='overview';
+   const detail=document.getElementById('businessDetailView'),parking=document.getElementById('businessSettingsParking'),panel=document.getElementById('businessCategorySettings');
+   if(panel&&parking)parking.appendChild(panel);
+   if(detail)detail.innerHTML=detailLandingHtml();
+   const inc=document.getElementById('businessDetailIncome'),out=document.getElementById('businessDetailExpense');
+   if(inc)inc.onclick=()=>openTransactionForBusiness('income',id);
+   if(out)out.onclick=()=>openTransactionForBusiness('expense',id);
+   refreshBusinessOverview();window.scrollTo(0,0);
+ };
+ window.closeBusinessDetail=function(){
+   if(typeof origCloseBusiness==='function')origCloseBusiness();
+   activeBizId=null;activeSub='overview';
+   const panel=document.getElementById('businessCategorySettings'),parking=document.getElementById('businessSettingsParking');
+   if(panel&&parking)parking.appendChild(panel);
+   if(panel)panel.style.display='none';
+   const detail=document.getElementById('businessDetailView');if(detail)detail.style.display='none';
+ };
+ window.openBusinessSubPage=function(kind){
+   if(!businessById(activeBizId))return;
+   activeSub=kind;
+   const detail=document.getElementById('businessDetailView');
+   if(!detail)return;
+   if(kind==='categories'||kind==='products'){
+     detail.innerHTML='<div class="business-sub-head"><button type="button" class="small" onclick="closeBusinessSub()">← Kembali</button><div><h2>'+(kind==='categories'?'Kategori usaha':'Produk usaha')+'</h2><div class="desc">'+esc(businessById(activeBizId).name)+'</div></div></div><div id="businessDetailSettings"></div>';
+     const panel=document.getElementById('businessCategorySettings'),parking=document.getElementById('businessSettingsParking');
+     if(panel&&parking)parking.appendChild(panel);
+     if(typeof renderBusinessCategorySettings==='function')renderBusinessCategorySettings();
+     const p=document.getElementById('businessCategorySettings');
+     if(p){
+       p.style.display='block';
+       const heads=[...p.querySelectorAll('.panel-head')],chooser=p.querySelector('.field');
+       if(heads[0])heads[0].style.display='none';
+       if(chooser)chooser.style.display='none';
+       const cat=document.getElementById('bizSettingsCategories'),prod=document.getElementById('bizSettingsProducts');
+       if(cat)cat.style.display=kind==='categories'?'block':'none';
+       if(prod)prod.style.display=kind==='products'?'block':'none';
+       if(heads[1])heads[1].style.display=kind==='categories'?'flex':'none';
+       if(heads[2])heads[2].style.display=kind==='products'?'flex':'none';
+     }
+     window.scrollTo(0,0);return;
+   }
+   if(kind==='hpp'){renderHppPage();return}
+ };
+ function renderHppPage(){
+   const detail=document.getElementById('businessDetailView'),b=businessById(activeBizId);if(!detail||!b)return;
+   if(!Array.isArray(state.hppRecords))state.hppRecords=[];
+   detail.innerHTML='<div class="business-sub-head"><button type="button" class="small" onclick="closeBusinessSub()">← Kembali</button><div><h2>Perhitungan HPP</h2><div class="desc">'+esc(b.name)+'</div></div></div><div class="hpp-card"><div class="desc">Harga Pokok Produksi per unit = (bahan baku + tenaga kerja + overhead) ÷ jumlah unit yang dihasilkan.</div><form id="hppForm"><div class="field"><label>Nama produk</label><input id="hppName" required maxlength="100" placeholder="Contoh: Cetak foto 10R"></div><div class="field"><label>Jumlah unit yang dihasilkan</label><input id="hppQty" required type="number" min="0.001" step="any" value="1"></div><div class="hpp-grid"><div class="field"><label>Total bahan baku (Rp)</label><input id="hppMaterial" required type="number" min="0" step="1" value="0"></div><div class="field"><label>Total tenaga kerja (Rp)</label><input id="hppLabor" required type="number" min="0" step="1" value="0"></div><div class="field" style="grid-column:1/-1"><label>Overhead / biaya produksi lain (Rp)</label><input id="hppOverhead" required type="number" min="0" step="1" value="0"></div></div><div class="hpp-result"><small>Total biaya produksi</small><strong id="hppTotal">Rp0</strong><small style="display:block;margin-top:10px">HPP per unit</small><strong id="hppUnit">Rp0</strong></div><div class="form-actions" style="margin-top:14px"><button type="button" onclick="closeBusinessSub()">Batal</button><button type="submit" class="primary">Simpan perhitungan</button></div></form></div><h2 class="business-section-heading">Riwayat HPP usaha ini</h2><div id="hppHistory"></div>';
+   const calc=()=>{const q=Number(document.getElementById('hppQty').value)||0,m=Number(document.getElementById('hppMaterial').value)||0,l=Number(document.getElementById('hppLabor').value)||0,o=Number(document.getElementById('hppOverhead').value)||0,total=m+l+o,unit=q>0?total/q:0;document.getElementById('hppTotal').textContent=money(total);document.getElementById('hppUnit').textContent=money(unit);return {q,m,l,o,total,unit}};
+   document.getElementById('hppForm').querySelectorAll('input').forEach(el=>el.addEventListener('input',calc));
+   const hppRender=()=>{const list=(state.hppRecords||[]).filter(x=>x.businessId===activeBizId).slice().reverse();document.getElementById('hppHistory').innerHTML=list.map(x=>'<div class="hpp-history-row"><div><strong>'+esc(x.productName)+'</strong><small>'+esc(x.date)+' · '+x.quantity+' unit · Total '+money(x.totalCost)+'</small></div><strong>'+money(x.unitCost)+'/unit</strong></div>').join('')||'<div class="desc">Belum ada perhitungan HPP disimpan.</div>'};
+   document.getElementById('hppForm').addEventListener('submit',e=>{e.preventDefault();const v=calc(),name=document.getElementById('hppName').value.trim();if(!name||v.q<=0)return alert('Isi nama produk dan jumlah unit lebih dari nol.');if(!Array.isArray(state.hppRecords))state.hppRecords=[];state.hppRecords.push({id:uid(),businessId:activeBizId,productName:name,quantity:v.q,materialCost:v.m,laborCost:v.l,overheadCost:v.o,totalCost:v.total,unitCost:v.unit,date:new Date().toISOString().slice(0,10)});save();showToast('Perhitungan HPP disimpan.');renderHppPage()});
+   calc();hppRender();
+ }
+ // Keep product/category settings inside the dedicated subpage rather than the business list.
+ const oldSettingsRenderer=window.renderBusinessCategorySettings;
+ if(typeof oldSettingsRenderer==='function')window.renderBusinessCategorySettings=function(){oldSettingsRenderer();if(activeBizId&&activeSub!=='overview')setTimeout(()=>{const p=document.getElementById('businessCategorySettings');if(p)p.style.display='block'},0)};
+})();
+</script>
+"""
+if "</body>" not in s: raise SystemExit("body closing tag not found before v6")
+s=s.replace("</body>",v6+"</body>",1)
 p.write_text(s)
 print("Feature upgrade applied",len(s))
