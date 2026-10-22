@@ -163,3 +163,30 @@ Dokumen ini mencatat kondisi build yang diketahui pada 22 Oktober 2026. Periksa 
 - Data HPP disimpan bersama data aplikasi. Ekspor cadangan JSON dari Pengaturan secara berkala, terutama sebelum update APK.
 - Memperbarui aplikasi dengan paket/tanda tangan yang sama biasanya mempertahankan data lokal. Menghapus aplikasi, menghapus data aplikasi, atau reset perangkat dapat menghapus data.
 - Setelah setiap build baru, uji satu transaksi pemasukan, satu pengeluaran, satu transfer, pengeditan kategori per usaha, produk pada dua usaha berbeda, dan satu kalkulasi HPP.
+
+## 12. Foto usaha, navigasi kembali, dan HPP berbahan baku
+
+### Foto usaha
+- Pada tab Usaha, kartu memiliki area foto/ikon dan tombol kamera untuk memilih foto dari perangkat.
+- Foto dikecilkan sebelum disimpan ke data lokal usaha, lalu ditampilkan pada kartu daftar usaha dan kartu usaha di dashboard.
+- Foto dapat diubah dengan memilih gambar baru dari tombol kamera di kartu. Foto yang terlalu besar tetap akan dikompresi agar tidak terlalu cepat memenuhi penyimpanan lokal.
+
+### Kartu usaha di dashboard
+- Kartu ringkasan per usaha menampilkan logo/ikon atau foto, nama usaha, pemasukan, pengeluaran, dan arus kas bersih.
+- Tombol aksi cepat pemasukan, pengeluaran, dan detail pada kartu dashboard dihilangkan. Ketuk kartu untuk membuka detail usaha.
+
+### Tombol kembali dan Batal
+- Tombol kembali pada halaman kategori, produk, HPP, dan detail usaha disambungkan ke alur navigasi aplikasi.
+- Tombol Batal/Tutup pada pop-up menutup pop-up yang sedang aktif.
+- Tombol Back bawaan Android menggunakan riwayat aplikasi: pop-up ditutup terlebih dahulu, lalu kembali dari halaman kategori/produk/HPP ke detail usaha, dari detail usaha ke daftar usaha, dan dari tab ke halaman sebelumnya. Jika tidak ada halaman sebelumnya, kembali ke Beranda.
+
+### HPP dengan rincian bahan baku
+- Masukkan nama produk yang dibuat dan jumlah unit hasil produksi.
+- Tambahkan beberapa baris bahan baku, misalnya kertas foto, tinta, laminasi, lem, atau komponen lain. Setiap baris berisi nama bahan, jumlah pemakaian, dan harga per unit.
+- Total biaya bahan baku dihitung sebagai jumlah dari kuantitas × harga per unit untuk tiap bahan.
+- Total biaya produksi = total bahan baku + tenaga kerja + overhead.
+- HPP per unit = total biaya produksi ÷ jumlah unit hasil produksi.
+- Riwayat HPP menyimpan rincian bahan, biaya, jumlah unit, dan HPP per unit per usaha.
+- HPP merupakan kalkulator pencatatan biaya. Ia belum secara otomatis membuat transaksi, menurunkan stok, atau mengubah harga jual produk.
+
+**Checklist pengujian tambahan setelah update:** unggah foto pada satu usaha dan periksa tampil di dashboard; ketuk kartu dashboard untuk membuka detail; buka kategori lalu tekan kembali bawaan Android; buka HPP, tambahkan setidaknya dua bahan baku, simpan, lalu periksa riwayat.
