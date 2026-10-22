@@ -85,7 +85,7 @@ extra_css = """
  #mobileBottomNav button[data-page="dashboard"]{grid-column:1;grid-row:1}
  #mobileBottomNav button[data-page="settings"]{display:none!important}
  /* Modal is layered above navigation on Android; only its form scrolls. */
- .modal-backdrop{position:fixed!important;inset:0!important;z-index:1000!important;display:flex;align-items:flex-end;justify-content:center;padding:0!important;overflow:hidden}
+ .modal-backdrop{position:fixed!important;inset:0!important;z-index:1000!important;align-items:flex-end;justify-content:center;padding:0!important;overflow:hidden}
  .modal{position:relative;z-index:1001;width:100%!important;max-height:calc(100dvh - env(safe-area-inset-top))!important;margin:0!important;border-radius:22px 22px 0 0!important;overflow:hidden!important;display:flex;flex-direction:column}
  .modal form{display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:0!important}
  .modal .form-actions{position:sticky!important;bottom:0!important;z-index:4!important;flex-shrink:0;background:#fff!important;padding:12px 0 max(14px,env(safe-area-inset-bottom))!important;box-shadow:0 -8px 14px #fff}
