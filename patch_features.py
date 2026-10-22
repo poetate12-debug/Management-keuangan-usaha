@@ -1099,12 +1099,14 @@ v8 = r"""
     if(top&&top.kind==='subpage'){history.back();return}
     if(ruActiveBusiness){rawOpenBusiness(ruActiveBusiness);refreshPhoto(ruActiveBusiness);ruActiveSub=null}
   };
+  const ruLegacyStartTyped=window.startTypedTransaction;
+  const ruLegacyChooseBusiness=window.chooseBusinessTyped;
   window.startTypedTransaction=function(type){
     if(type!=='income'&&type!=='expense'&&type!=='transfer')return;
     window.ruNextTransactionType=type;
     const action=()=>{
       // The legacy function fills its private selected-type state; close/open are handed off as one modal history entry.
-      const fn=window.ruLegacyStartTyped;
+      const fn=ruLegacyStartTyped;
       if(typeof fn==='function')fn(type);
       else{
         const tp=document.getElementById('txTypePicker');if(tp)tp.style.display='none';
@@ -1121,12 +1123,10 @@ v8 = r"""
     };
     startModalHandoff('txTypePicker',type==='transfer'?'txModal':'businessPickerModal',action);
   };
-  const legacyStartTyped=window.startTypedTransaction;
-  window.ruLegacyStartTyped=legacyStartTyped;
   window.chooseBusinessTyped=function(id){
     window.ruChosenBusinessId=id;
     startModalHandoff('businessPickerModal','txModal',()=>{
-      if(typeof window.ruLegacyChooseBusiness==='function')window.ruLegacyChooseBusiness(id);
+      if(typeof ruLegacyChooseBusiness==='function')ruLegacyChooseBusiness(id);
       else{
         if(typeof window.openTransactionForm==='function')window.openTransactionForm('',id==='__general__'?'':id);
         const t=document.getElementById('fType');if(t&&window.ruNextTransactionType)t.value=window.ruNextTransactionType;
@@ -1136,7 +1136,6 @@ v8 = r"""
       }
     });
   };
-  window.ruLegacyChooseBusiness=window.chooseBusinessTyped;
   window.closeModal=function(id){
     const top=currentEntry();
     if(modalHandoff&&modalHandoff.from===id){const el=document.getElementById(id);if(el)el.style.display='none';return}
