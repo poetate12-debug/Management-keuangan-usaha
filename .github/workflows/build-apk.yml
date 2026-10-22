@@ -37,14 +37,14 @@ jobs:
           # Add a native bridge so JSON and Excel downloads work in Android WebView.
           if "class RuangUsahaDownloadBridge" not in code:
               import re
-              match = re.search(r'WebView\\s+(\\w+)\\s*=', code)
+              match = re.search(r'WebView\s+(\w+)\s*=', code)
               if not match:
                   raise SystemExit("Cannot locate Android WebView variable for download bridge")
               webview = match.group(1)
               inject = '        ' + webview + '.addJavascriptInterface(new RuangUsahaDownloadBridge(this), "AndroidDownloads");'
               dom_marker = "settings.setDomStorageEnabled(true);"
               if '"AndroidDownloads"' not in code:
-                  code = code.replace(dom_marker, dom_marker + "\\n" + inject, 1)
+                  code = code.replace(dom_marker, dom_marker + "\n" + inject, 1)
               bridge = r'''
               private static class RuangUsahaDownloadBridge {
                   private final android.app.Activity activity;
@@ -81,7 +81,7 @@ jobs:
               '''
               pos = code.rfind("}")
               if pos < 0: raise SystemExit("Cannot insert download bridge into MainActivity")
-              code = code[:pos] + bridge + "\\n" + code[pos:]
+              code = code[:pos] + bridge + "\n" + code[pos:]
           java.write_text(code)
           PY
           python3 patch_mobile.py
