@@ -1294,3 +1294,257 @@ v8 = r"""
 s=s.replace("</body>",v7+v8+"</body>",1)
 p.write_text(s)
 print("Feature upgrade applied",len(s))
+
+
+
+# KasUsaha fix pack v1: resilient categories, monthly reports per business, import normalization
+s = p.read_text()
+if "RuangUsaha finance fixes v1" not in s:
+    finance_css = r"""
+/* RuangUsaha finance fixes v1 */
+#ruMonthlyBusinessReport{margin:0 0 16px}
+#ruMonthlyBusinessReport .ru-report-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+#ruMonthlyBusinessReport .ru-report-controls label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+#ruMonthlyBusinessReport .ru-report-controls input,#ruMonthlyBusinessReport .ru-report-controls select{width:100%;min-width:0;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:inherit}
+#ruMonthlyBusinessReport .ru-report-total{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+#ruMonthlyBusinessReport .ru-report-metric{border:1px solid var(--line);border-radius:13px;padding:10px;min-width:0;background:#fff}
+#ruMonthlyBusinessReport .ru-report-metric small{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}
+#ruMonthlyBusinessReport .ru-report-metric strong{display:block;font-size:clamp(12px,3.6vw,18px);overflow-wrap:anywhere}
+#ruMonthlyBusinessReport .ru-business-month-card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:13px;margin:10px 0;min-width:0}
+#ruMonthlyBusinessReport .ru-business-month-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+#ruMonthlyBusinessReport .ru-business-month-head h3{margin:0;font-size:15px;overflow-wrap:anywhere}
+#ruMonthlyBusinessReport .ru-month-tx{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:12px}
+#ruMonthlyBusinessReport .ru-month-tx > div:first-child{min-width:0;overflow-wrap:anywhere}
+#ruMonthlyBusinessReport .ru-month-tx small{display:block;color:var(--muted);margin-top:3px}
+#ruMonthlyBusinessReport .ru-month-tx strong{white-space:nowrap;font-size:12px}
+#bizCategoryModal{z-index:10000!important}
+#bizCategoryModal .modal{z-index:10001!important}
+@media(max-width:700px){#ruMonthlyBusinessReport .ru-report-controls{grid-template-columns:1fr}#ruMonthlyBusinessReport .ru-report-total{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#ruMonthlyBusinessReport .ru-report-metric{padding:8px}}
+"""
+    if "</style>" not in s:
+        raise SystemExit("Tidak menemukan penutup style untuk patch laporan")
+    s = s.replace("</style>", finance_css + "\n</style>", 1)
+    reports_marker = '<section class="section" id="page-reports">'
+    if reports_marker not in s:
+        import re
+        m = re.search(r'<section[^>]*id=["\\']page-reports["\\'][^>]*>', s, re.I)
+        if not m:
+            raise SystemExit("Bagian halaman Laporan tidak ditemukan")
+        reports_marker = m.group(0)
+    report_html = r"""
+<div class="panel" id="ruMonthlyBusinessReport">
+  <div class="panel-head"><div><h2>Laporan bulanan per usaha</h2><div class="desc">Pemasukan, pengeluaran, dan saldo bersih tiap usaha dipisahkan.</div></div></div>
+  <div class="ru-report-controls">
+    <div><label for="ruReportMonth">Bulan laporan</label><input id="ruReportMonth" type="month"></div>
+    <div><label for="ruReportBusiness">Usaha</label><select id="ruReportBusiness"><option value="">Semua usaha (ditampilkan terpisah)</option></select></div>
+  </div>
+  <div id="ruReportSummary"></div>
+  <div id="ruReportBusinessCards"></div>
+  <div class="desc" id="ruReportDateNote" style="margin-top:10px">Transaksi tanpa tanggal hanya masuk laporan bulanan jika memiliki penanda bulan pada data transaksi.</div>
+</div>
+"""
+    s = s.replace(reports_marker, reports_marker + report_html, 1)
+    finance_js = r"""
+<script>
+(function(){
+  var reportRoot = document.getElementById('ruMonthlyBusinessReport');
+  if (!reportRoot) return;
+  function allState(){ return (typeof state !== 'undefined' && state) ? state : {}; }
+  function escReport(v){
+    return String(v === undefined || v === null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function rupiah(v){ return 'Rp' + (Number(v)||0).toLocaleString('id-ID'); }
+  function monthKey(t){
+    var d = String(t && t.date || '');
+    if (/^\\d{4}-\\d{2}/.test(d)) return d.slice(0,7);
+    var m = String(t && (t.reportMonth || t.monthKey || t.month) || '');
+    return /^\\d{4}-\\d{2}/.test(m) ? m.slice(0,7) : '';
+  }
+  function typeText(t){ return t==='income'?'Pemasukan':t==='expense'?'Pengeluaran':'Transfer'; }
+  function categoryText(id){
+    var cats = allState().categories || [], c = cats.find(function(x){return x.id===id;});
+    return c ? c.name : '';
+  }
+  function dateText(t){
+    var d=String(t && t.date || '');
+    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(d)) return d;
+    if (monthKey(t)) return 'Bulan '+monthKey(t);
+    return 'Tanggal tidak tercantum';
+  }
+  function businesses(){
+    return (allState().businesses || []).filter(function(b){return !b.archived;});
+  }
+  function transactions(){ return allState().transactions || []; }
+  function fillBusinessFilter(){
+    var select=document.getElementById('ruReportBusiness'),old=select.value;
+    var html='<option value="">Semua usaha (ditampilkan terpisah)</option>';
+    businesses().forEach(function(b){html+='<option value="'+escReport(b.id)+'">'+escReport(b.name)+'</option>';});
+    select.innerHTML=html;
+    if ([].some.call(select.options,function(o){return o.value===old;})) select.value=old;
+  }
+  function renderBusinessCards(){
+    var month=document.getElementById('ruReportMonth').value;
+    var selected=document.getElementById('ruReportBusiness').value;
+    var txs=transactions().filter(function(t){return month && monthKey(t)===month;});
+    var biz=businesses().filter(function(b){return !selected || b.id===selected;});
+    var totals={inc:0,out:0};
+    var reportTxs=txs.filter(function(t){return !t.businessId || biz.some(function(b){return b.id===t.businessId;});});
+    reportTxs.forEach(function(t){if(t.type==='income')totals.inc+=Number(t.amount)||0;else if(t.type==='expense')totals.out+=Number(t.amount)||0;});
+    var summary=document.getElementById('ruReportSummary');
+    summary.innerHTML='<div class="ru-report-total"><div class="ru-report-metric"><small>Total pemasukan</small><strong style="color:var(--green)">'+rupiah(totals.inc)+'</strong></div><div class="ru-report-metric"><small>Total pengeluaran</small><strong style="color:var(--red)">'+rupiah(totals.out)+'</strong></div><div class="ru-report-metric"><small>Saldo bersih</small><strong>'+rupiah(totals.inc-totals.out)+'</strong></div></div>';
+    var cards='';
+    biz.forEach(function(b){
+      var items=txs.filter(function(t){return t.businessId===b.id && (t.type==='income'||t.type==='expense');})
+        .sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
+      var inc=0,out=0;
+      items.forEach(function(t){if(t.type==='income')inc+=Number(t.amount)||0;else out+=Number(t.amount)||0;});
+      cards+='<div class="ru-business-month-card"><div class="ru-business-month-head"><h3>'+escReport(b.name)+'</h3><strong>'+rupiah(inc-out)+'</strong></div><div class="ru-report-total"><div class="ru-report-metric"><small>Pemasukan</small><strong style="color:var(--green)">'+rupiah(inc)+'</strong></div><div class="ru-report-metric"><small>Pengeluaran</small><strong style="color:var(--red)">'+rupiah(out)+'</strong></div><div class="ru-report-metric"><small>Transaksi</small><strong>'+items.length+'</strong></div></div>';
+      if(items.length){
+        items.forEach(function(t){
+          cards+='<div class="ru-month-tx"><div><strong>'+escReport(t.note || typeText(t.type))+'</strong><small>'+escReport(dateText(t))+' · '+escReport(categoryText(t.categoryId)||typeText(t.type))+'</small></div><strong style="color:'+(t.type==='expense'?'var(--red)':'var(--green)')+'">'+(t.type==='expense'?'−':'+')+rupiah(t.amount)+'</strong></div>';
+        });
+      }else cards+='<div class="desc">Belum ada transaksi bertanggal/bulan untuk usaha ini.</div>';
+      cards+='</div>';
+    });
+    var general=txs.filter(function(t){return !t.businessId && (t.type==='income'||t.type==='expense');});
+    if(!selected && general.length){
+      var gi=0,go=0;general.forEach(function(t){if(t.type==='income')gi+=Number(t.amount)||0;else go+=Number(t.amount)||0;});
+      cards+='<div class="ru-business-month-card"><div class="ru-business-month-head"><h3>Operasional umum</h3><strong>'+rupiah(gi-go)+'</strong></div><div class="ru-report-total"><div class="ru-report-metric"><small>Pemasukan</small><strong>'+rupiah(gi)+'</strong></div><div class="ru-report-metric"><small>Pengeluaran</small><strong>'+rupiah(go)+'</strong></div><div class="ru-report-metric"><small>Transaksi</small><strong>'+general.length+'</strong></div></div></div>';
+    }
+    document.getElementById('ruReportBusinessCards').innerHTML=cards || '<div class="desc">Belum ada usaha. Tambahkan usaha terlebih dahulu.</div>';
+  }
+  window.renderRuMonthlyBusinessReport=function(){
+    if(!reportRoot) return;
+    fillBusinessFilter();
+    var input=document.getElementById('ruReportMonth');
+    if(!input.value){
+      var months=transactions().map(monthKey).filter(Boolean).sort();
+      input.value=months.length?months[months.length-1]:new Date().toISOString().slice(0,7);
+    }
+    renderBusinessCards();
+  };
+  document.getElementById('ruReportMonth').addEventListener('change',renderBusinessCards);
+  document.getElementById('ruReportBusiness').addEventListener('change',renderBusinessCards);
+  document.addEventListener('click',function(e){
+    var button=e.target && e.target.closest ? e.target.closest('[data-page="reports"],[onclick*="reports"]') : null;
+    if(button) setTimeout(window.renderRuMonthlyBusinessReport,80);
+  },true);
+  if(typeof window.render==='function'){
+    var oldRender=window.render;
+    window.render=function(){oldRender.apply(this,arguments);window.renderRuMonthlyBusinessReport();};
+  }
+  window.addEventListener('storage',window.renderRuMonthlyBusinessReport);
+  setTimeout(window.renderRuMonthlyBusinessReport,100);
+  setTimeout(window.renderRuMonthlyBusinessReport,500);
+
+  // Reliable category modal/form path, independent of page-level navigation wrappers.
+  function currentBusinessId(){
+    var sel=document.getElementById('bizSettingsBusiness');
+    if(sel && sel.value) return sel.value;
+    if(window.ruCurrentBusinessId) return window.ruCurrentBusinessId;
+    var active=(allState().businesses||[]).filter(function(b){return !b.archived;});
+    return active.length?active[0].id:'';
+  }
+  function businessOptions(selected){
+    return (allState().businesses||[]).filter(function(b){return !b.archived;}).map(function(b){
+      return '<option value="'+escReport(b.id)+'"'+(b.id===selected?' selected':'')+'>'+escReport(b.name)+'</option>';
+    }).join('');
+  }
+  window.openBusinessCategory=function(id){
+    var st=allState(), bid=currentBusinessId(), form=document.getElementById('bizCategoryForm');
+    var modal=document.getElementById('bizCategoryModal'),sel=document.getElementById('bizCategoryBusiness');
+    if(!form||!modal||!sel){alert('Form kategori tidak ditemukan. Silakan buka kembali halaman Usaha.');return;}
+    if(!bid){alert('Tambahkan usaha terlebih dahulu.');return;}
+    sel.innerHTML=businessOptions(bid);sel.value=bid;
+    form.reset();
+    document.getElementById('bizCategoryId').value='';
+    document.getElementById('bizCategoryTitle').textContent=id?'Edit kategori':'Tambah kategori';
+    if(id){
+      var c=(st.categories||[]).find(function(x){return x.id===id;});
+      if(!c){alert('Kategori tidak ditemukan.');return;}
+      document.getElementById('bizCategoryId').value=c.id;
+      sel.value=c.businessId||bid;
+      document.getElementById('bizCategoryType').value=c.type||'expense';
+      document.getElementById('bizCategoryName').value=c.name||'';
+    }
+    modal.style.setProperty('display','flex','important');
+    modal.style.setProperty('z-index','10000','important');
+    var inner=modal.querySelector('.modal');if(inner)inner.style.setProperty('z-index','10001','important');
+    if(typeof window.setModalBodyLock==='function')window.setModalBodyLock();
+    setTimeout(function(){var name=document.getElementById('bizCategoryName');if(name)name.focus();},50);
+  };
+  var form=document.getElementById('bizCategoryForm');
+  if(form){
+    form.addEventListener('submit',function(e){
+      e.preventDefault();e.stopImmediatePropagation();
+      try{
+        var st=allState(),id=document.getElementById('bizCategoryId').value;
+        var businessId=document.getElementById('bizCategoryBusiness').value;
+        var type=document.getElementById('bizCategoryType').value;
+        var name=document.getElementById('bizCategoryName').value.trim();
+        if(!businessId||!name){alert('Pilih usaha dan isi nama kategori.');return;}
+        st.categories=st.categories||[];
+        var duplicate=st.categories.some(function(c){return c.id!==id&&c.businessId===businessId&&c.type===type&&String(c.name||'').toLowerCase()===name.toLowerCase();});
+        if(duplicate){alert('Kategori dengan nama tersebut sudah ada di usaha ini.');return;}
+        if(id){
+          var existing=st.categories.find(function(c){return c.id===id;});
+          if(!existing){alert('Kategori yang akan diedit tidak ditemukan.');return;}
+          Object.assign(existing,{businessId:businessId,type:type,name:name});
+        }else{
+          var newId='cat-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
+          st.categories.push({id:newId,businessId:businessId,type:type,name:name});
+        }
+        if(typeof save==='function')save();
+        if(typeof window.renderBusinessCategorySettings==='function')window.renderBusinessCategorySettings();
+        if(typeof window.updateTxForm==='function')window.updateTxForm();
+        if(typeof window.closeModal==='function')window.closeModal('bizCategoryModal');
+        else modal.style.display='none';
+        if(typeof window.showToast==='function')window.showToast('Kategori usaha berhasil disimpan.');
+      }catch(err){alert('Gagal menyimpan kategori: '+(err&&err.message?err.message:String(err)));}
+    },true);
+  }
+
+  // Accept both native backups (data:{...}) and top-level JSON transaction exports.
+  window.importBackupFile=function(event){
+    var file=event.target.files&&event.target.files[0];if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(){
+      try{
+        var parsed=JSON.parse(String(reader.result||'')), d=parsed&&parsed.data?parsed.data:parsed;
+        if(!d||!Array.isArray(d.transactions)||!Array.isArray(d.accounts)||!Array.isArray(d.categories))throw new Error('JSON harus memiliki transactions, accounts, dan categories berupa array.');
+        if(!confirm('Impor akan mengganti data usaha, akun, kategori, produk, HPP, dan transaksi saat ini. Ekspor cadangan dahulu bila data masih diperlukan. Lanjutkan?'))return;
+        var accounts=d.accounts.map(function(a){var x=Object.assign({},a);x.opening=Number(x.opening!==undefined?x.opening:(x.balance!==undefined?x.balance:0))||0;delete x.balance;return x;});
+        var businesses=Array.isArray(d.businesses)?d.businesses:[];
+        var categories=d.categories.map(function(c){return Object.assign({},c,{type:c.type==='income'?'income':'expense',businessId:c.businessId||''});});
+        var transactions=d.transactions.map(function(t,i){
+          var x=Object.assign({},t);
+          x.id=x.id||('import-tx-'+Date.now()+'-'+i);
+          x.amount=Number(x.amount)||0;
+          x.date=String(x.date||'');
+          if(!x.reportMonth)x.reportMonth=x.monthKey||x.month||'';
+          x.type=['income','expense','transfer'].indexOf(x.type)>=0?x.type:'expense';
+          x.businessId=x.businessId||'';
+          x.categoryId=x.categoryId||'';
+          x.accountId=x.accountId||(accounts[0]&&accounts[0].id)||'';
+          return x;
+        });
+        state=Object.assign({},state,d,{businesses:businesses,accounts:accounts,categories:categories,transactions:transactions,products:Array.isArray(d.products)?d.products:[],hppRecords:Array.isArray(d.hppRecords)?d.hppRecords:[]});
+        if(typeof save==='function')save();
+        if(typeof render==='function')render();
+        if(typeof window.renderRuMonthlyBusinessReport==='function')window.renderRuMonthlyBusinessReport();
+        if(typeof window.showToast==='function')window.showToast('Data berhasil dipulihkan.');
+        else alert('Data berhasil dipulihkan.');
+      }catch(err){alert('File cadangan tidak valid atau rusak: '+(err&&err.message?err.message:String(err)));}
+      finally{event.target.value='';}
+    };
+    reader.onerror=function(){alert('File tidak dapat dibaca.');};
+    reader.readAsText(file);
+  };
+  document.addEventListener('DOMContentLoaded',function(){
+    window.renderRuMonthlyBusinessReport();
+  });
+})();
+</script>
+"""
+    s = s.replace("</body>", finance_js + "\n</body>", 1)
+    p.write_text(s)
