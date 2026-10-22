@@ -926,7 +926,105 @@ v7 = r"""
      return '<div class="hpp-history-row"><div><strong>'+esc(x.productName)+'</strong><small>'+esc(x.date)+' · '+x.quantity+' unit'+(materialDesc?' · '+materialDesc:'')+'</small></div><strong>'+money(x.unitCost)+'/unit</strong></div>';
    }).join('')||'<div class="desc">Belum ada perhitungan HPP untuk usaha ini.</div>';
  }
- // Patch top-level back and cancel controls so they are reliable in WebView and Android navigation.
+ // Coordinated history stack: Android WebView's Back button closes overlays/subpages first, then returns between tabs.
+  const ruUiStack=[];let ruUiSeq=0,ruPendingUiBack=false,ruSuppressGoHistory=false;
+  function pushUi(kind,id,from){
+    const top=ruUiStack[ruUiStack.length-1];
+    if(top&&top.kind===kind&&top.id===id)return;
+    const seq=++ruUiSeq;ruUiStack.push({kind,id,from,seq});
+    try{history.pushState({ruApp:true,ruSeq:seq},'','#ru-'+kind+'-'+seq)}catch(err){}
+  }
+  function finishUiBack(kind,id){
+    const top=ruUiStack[ruUiStack.length-1];
+    if(top&&top.kind===kind&&(id==null||top.id===id)&&history.state&&history.state.ruApp){ruPendingUiBack=true;history.back()}
+    else if(top&&top.kind===kind&&(id==null||top.id===id))ruUiStack.pop();
+  }
+  const ruBaseGo=window.go;
+  window.go=function(page){
+    const active=document.querySelector('.section.active'),from=active?active.id.replace('page-',''):'dashboard';
+    if(!ruSuppressGoHistory&&from!==page)pushUi('page',from,page);
+    if(typeof ruBaseGo==='function')ruBaseGo(page);
+  };
+  const ruBaseCloseModal=window.closeModal;
+  window.closeModal=function(id){
+    if(typeof ruBaseCloseModal==='function')ruBaseCloseModal(id);
+    else{const el=document.getElementById(id);if(el)el.style.display='none'}
+    finishUiBack('modal',id);ruUpdateBodyLock();
+  };
+  function ruUpdateBodyLock(){
+    const visible=[...document.querySelectorAll('.modal-backdrop')].some(el=>getComputedStyle(el).display!=='none');
+    document.body.style.overflow=visible?'hidden':'';
+    document.body.style.overscrollBehavior=visible?'none':'';
+  }
+  function ruTopModal(){return [...document.querySelectorAll('.modal-backdrop')].reverse().find(el=>getComputedStyle(el).display!=='none')}
+  function ruObserveModal(){
+    const visible=ruTopModal(),top=ruUiStack[ruUiStack.length-1];
+    if(visible&&(!top||top.kind!=='modal'||top.id!==visible.id))pushUi('modal',visible.id);
+    ruUpdateBodyLock();
+  }
+  document.querySelectorAll('.modal-backdrop').forEach(el=>{
+    new MutationObserver(()=>setTimeout(ruObserveModal,45)).observe(el,{attributes:true,attributeFilter:['style','class']});
+  });
+  const ruBaseOpenBusiness=baseOpenBusiness,ruBaseCloseBusiness=baseCloseBusiness;
+  window.openBusinessDetail=function(id){
+    const result=ruBaseOpenBusiness&&ruBaseOpenBusiness(id);
+    currentBusiness=id;window.ruCurrentBusinessId=id;addPhotoView(id);
+    if(!window.ruSuppressBusinessHistory)pushUi('business',id);
+    return result;
+  };
+  window.closeBusinessDetail=function(){
+    const id=currentBusiness;
+    if(ruBaseCloseBusiness)ruBaseCloseBusiness();
+    currentBusiness=null;window.ruCurrentBusinessId=null;
+    finishUiBack('business',id);
+  };
+  const ruBaseOpenBusinessSub=window.openBusinessSubPage;
+  window.openBusinessSubPage=function(kind){
+    const id=currentBusiness||window.ruCurrentBusinessId;if(!id)return;
+    pushUi('subpage',id,kind);
+    if(kind==='hpp'){renderHppWithMaterials(id);return}
+    if(typeof ruBaseOpenBusinessSub==='function')ruBaseOpenBusinessSub(kind);
+    setTimeout(()=>{
+      const panel=document.getElementById('businessCategorySettings');
+      if(panel)panel.style.display='block';
+      const heads=panel?[...panel.querySelectorAll('.panel-head')]:[];
+      if(heads[0])heads[0].style.display='none';
+      const chooser=panel&&panel.querySelector('.field');if(chooser)chooser.style.display='none';
+      const cats=document.getElementById('bizSettingsCategories'),products=document.getElementById('bizSettingsProducts');
+      if(cats)cats.style.display=kind==='categories'?'block':'none';
+      if(products)products.style.display=kind==='products'?'block':'none';
+      if(heads[1])heads[1].style.display=kind==='categories'?'flex':'none';
+      if(heads[2])heads[2].style.display=kind==='products'?'flex':'none';
+    },0);
+  };
+  function ruRestoreDetail(id){
+    const target=id||currentBusiness;if(!target)return;
+    if(ruBaseOpenBusiness){window.ruSuppressBusinessHistory=true;ruBaseOpenBusiness(target);window.ruSuppressBusinessHistory=false}
+    currentBusiness=target;window.ruCurrentBusinessId=target;addPhotoView(target);
+  }
+  window.closeBusinessSub=function(){
+    const top=ruUiStack[ruUiStack.length-1];
+    if(top&&top.kind==='subpage'&&history.state&&history.state.ruApp){ruPendingUiBack=true;history.back()}
+    else ruRestoreDetail(currentBusiness);
+  };
+  window.addEventListener('popstate',()=>{
+    const entry=ruUiStack.pop();
+    if(ruPendingUiBack){ruPendingUiBack=false;ruUpdateBodyLock();return}
+    if(entry){
+      if(entry.kind==='modal'){const el=document.getElementById(entry.id);if(el)el.style.display='none';ruUpdateBodyLock();return}
+      if(entry.kind==='subpage'){ruRestoreDetail(entry.id);return}
+      if(entry.kind==='business'){
+        if(ruBaseCloseBusiness)ruBaseCloseBusiness();currentBusiness=null;window.ruCurrentBusinessId=null;return;
+      }
+      if(entry.kind==='page'){
+        ruSuppressGoHistory=true;if(typeof ruBaseGo==='function')ruBaseGo(entry.id||'dashboard');ruSuppressGoHistory=false;return;
+      }
+    }
+    const active=document.querySelector('.section.active');
+    if(active&&active.id!=='page-dashboard'){ruSuppressGoHistory=true;if(typeof ruBaseGo==='function')ruBaseGo('dashboard');ruSuppressGoHistory=false}
+  }
+  );
+  // Both visible back buttons and Android hardware Back now use the same stack.
 })();
 </script>
 """
