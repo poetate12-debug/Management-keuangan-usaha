@@ -37,7 +37,7 @@ jobs:
           # Add a native bridge so JSON and Excel downloads work in Android WebView.
           if "class RuangUsahaDownloadBridge" not in code:
               import re
-              match = re.search(r'WebView\s+(\w+)\s*=', code)
+              match = re.search(r'\b(\w+)\.getSettings\(\)', code)
               if not match:
                   raise SystemExit("Cannot locate Android WebView variable for download bridge")
               webview = match.group(1)
