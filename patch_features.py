@@ -157,12 +157,18 @@ function exportExcel(){
    sheet('HPP',['Tanggal','Usaha','Nama produk','Jumlah unit','Biaya bahan baku (Rp)','Tenaga kerja (Rp)','Overhead (Rp)','Total biaya (Rp)','HPP per unit (Rp)'],hpp.map(h=>[h.date||'',businessName(h.businessId),h.productName||'',Number(h.quantity)||0,Number(h.materialCost)||0,Number(h.laborCost)||0,Number(h.overheadCost)||0,Number(h.totalCost)||0,Number(h.unitCost)||0]),[3,4,5,6,7,8])
   ];
   const workbook='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'+sheets.join('')+'</Workbook>';
-  const blob=new Blob(['\\uFEFF',workbook],{type:'application/vnd.ms-excel;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download='RuangUsaha-Laporan-'+new Date().toISOString().slice(0,10)+'.xls';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
-  showToast('File Excel berisi transaksi, usaha, akun, kategori, produk, dan HPP disiapkan.');
+  const filename='KasUsaha-Laporan-'+new Date().toISOString().slice(0,10)+'.xls',mime='application/vnd.ms-excel';
+  if(window.AndroidDownloads&&typeof window.AndroidDownloads.saveFile==='function'){
+    const bytes=new TextEncoder().encode(workbook),parts=[];for(let i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode(...bytes.subarray(i,i+8192)));
+    window.AndroidDownloads.saveFile(filename,mime,btoa(parts.join('')));
+  }else{
+    const blob=new Blob(['\\uFEFF',workbook],{type:mime+';charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
+  }
+  showToast('Ekspor Excel disiapkan. Periksa folder Unduhan.');
  }catch(err){alert('Ekspor Excel gagal: '+(err&&err.message?err.message:String(err)))}
 }
-function exportBackup(){try{const payload={app:'RuangUsaha',formatVersion:1,exportedAt:new Date().toISOString(),data:state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='RuangUsaha-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);showToast('Cadangan disiapkan. Pastikan file tersimpan di perangkat.')}catch(err){alert('Ekspor gagal: '+err.message)}}
+function exportBackup(){try{const payload=JSON.stringify({app:'RuangUsaha',formatVersion:1,exportedAt:new Date().toISOString(),data:state},null,2),filename='KasUsaha-backup-'+new Date().toISOString().slice(0,10)+'.json';if(window.AndroidDownloads&&typeof window.AndroidDownloads.saveFile==='function'){const bytes=new TextEncoder().encode(payload),parts=[];for(let i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode(...bytes.subarray(i,i+8192)));window.AndroidDownloads.saveFile(filename,'application/json',btoa(parts.join('')))}else{const blob=new Blob([payload],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}showToast('Cadangan JSON disiapkan. Periksa folder Unduhan.')}catch(err){alert('Ekspor gagal: '+err.message)}}
 function importBackupFile(event){const file=event.target.files&&event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(String(reader.result||'')),d=parsed.data||parsed;if(!d||!Array.isArray(d.transactions)||!Array.isArray(d.accounts)||!Array.isArray(d.categories))throw new Error('Format file cadangan tidak dikenali');if(!confirm('Impor akan mengganti data saat ini. Pastikan Anda sudah mengekspor cadangan data terbaru. Lanjutkan?'))return;state={...state,...d,accounts:d.accounts,transactions:d.transactions,categories:d.categories,businesses:Array.isArray(d.businesses)?d.businesses:[],products:Array.isArray(d.products)?d.products:[]};save();if(typeof render==='function')render();showToast('Data berhasil dipulihkan.')}catch(err){alert('File cadangan tidak valid atau rusak: '+err.message)}finally{event.target.value=''}};reader.onerror=()=>alert('File tidak dapat dibaca.');reader.readAsText(file)}
 """
 # Add just before the final script closing tag; preserve other script tags.
@@ -779,11 +785,16 @@ v7 = r"""
      const type=document.createElement('div');type.className='ru-business-type';type.textContent=b.type||'Usaha';
      const status=document.createElement('span');status.className='ru-business-status'+(b.archived?' archived':'');status.textContent=b.archived?'Diarsipkan':'Aktif';
      info.append(name,type,status);
+     const nowMonth=typeof monthNow==='function'?monthNow():new Date().toISOString().slice(0,7);
+     const txs=(state.transactions||[]).filter(t=>t.businessId===b.id),monthTx=txs.filter(t=>String(t.date||'').startsWith(nowMonth));
+     const sum=typeof totals==='function'?totals(monthTx):{inc:0,out:0,net:0};
+     const statGrid=document.createElement('div');statGrid.className='ru-business-stat-grid';
+     statGrid.innerHTML='<div class="ru-business-stat"><small>Pemasukan bulan ini</small><strong style="color:var(--green)">'+money(sum.inc)+'</strong></div><div class="ru-business-stat"><small>Pengeluaran bulan ini</small><strong style="color:var(--red)">'+money(sum.out)+'</strong></div><div class="ru-business-stat"><small>Arus kas bersih</small><strong style="color:var(--blue)">'+money(sum.net)+'</strong></div><div class="ru-business-stat"><small>Total transaksi</small><strong>'+txs.length+'</strong></div>';
      const actions=document.createElement('div');actions.className='ru-business-actions';
      const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.addEventListener('click',e=>{e.stopPropagation();openBusiness(b.id)});
      const archive=document.createElement('button');archive.type='button';archive.className='archive';archive.textContent=b.archived?'Aktifkan':'Arsipkan';archive.addEventListener('click',e=>{e.stopPropagation();toggleBusinessArchive(b.id);});
      actions.append(edit,archive);
-     card.append(cover,info,actions);
+     card.append(cover,info,statGrid,actions);
      card.addEventListener('click',()=>window.openBusinessDetail(b.id));
      card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();window.openBusinessDetail(b.id)}});
      list.appendChild(card);
@@ -1065,6 +1076,37 @@ v7 = r"""
 </script>
 """
 v8 = r"""
+<style>
+/* Keep the fixed mobile navigation visible while transaction sheets are open. */
+@media(max-width:700px){
+ .modal-backdrop{z-index:29!important;bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;align-items:flex-end!important;padding:0!important}
+ .modal-backdrop>.modal{max-height:calc(100% - 8px)!important;width:100%!important;border-radius:20px 20px 0 0!important;overflow-y:auto!important}
+ .mobile-bottom-nav{z-index:30!important}
+ #txTypePicker .type-choice{min-height:100px;flex:1;flex-direction:column;justify-content:center;text-align:center;gap:8px;padding:12px 7px!important;margin:0!important}
+ #txTypePicker .modal{padding-bottom:16px!important}
+ #txTypePicker .type-choice:first-of-type{border-color:#b9e7cc;background:#edfaf2;color:#117747}
+ #txTypePicker .type-choice:first-of-type .type-icon{background:#ccefd9;color:#087643}
+ #txTypePicker .type-choice:nth-of-type(2){border-color:#f1c7c7;background:#fff0f0;color:#b42332}
+ #txTypePicker .type-choice:nth-of-type(2) .type-icon{background:#ffd9d9;color:#b42332}
+ #txTypePicker .type-choice:nth-of-type(3){border-color:#d8def8;background:#f3f5ff;color:#4655be}
+ #businessesList.ru-business-grid{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}
+ .ru-business-card{display:grid;grid-template-columns:112px minmax(0,1fr);grid-template-rows:auto auto;border-radius:20px!important}
+ .ru-business-cover{grid-column:1;grid-row:1/3;height:100%;min-height:160px}
+ .ru-business-cover img{position:absolute;inset:0}
+ .ru-business-photo-btn{right:7px;top:7px;width:30px;height:30px}
+ .ru-business-info{grid-column:2;grid-row:1;padding:14px 12px 8px!important}
+ .ru-business-name{font-size:15px;line-height:1.3}
+ .ru-business-type{min-height:0;font-size:12px;margin-top:5px}
+ .ru-business-status{margin-top:9px}
+ .ru-business-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:0 12px 10px;grid-column:2;grid-row:2}
+ .ru-business-stat{background:#f7f8fc;border-radius:10px;padding:7px 8px;min-width:0}
+ .ru-business-stat small{display:block;color:var(--muted);font-size:10px;line-height:1.2}
+ .ru-business-stat strong{display:block;font-size:12px;line-height:1.3;margin-top:3px;overflow-wrap:anywhere}
+ .ru-business-actions{grid-column:1/-1;grid-row:3;padding:8px 10px!important;gap:8px}
+ .ru-business-actions button{padding:9px!important;font-size:12px!important}
+}
+@media(max-width:390px){.ru-business-card{grid-template-columns:96px minmax(0,1fr)}.ru-business-cover{min-height:170px}}
+</style>
 <script>
 (function(){
   window.ruUseSingleNavigationStack=true;
