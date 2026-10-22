@@ -119,7 +119,8 @@ document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(se
  }
  const all=[...document.querySelectorAll('button,a,[role="button"]')];
  let exportBtn=all.find(el=>/\b(ekspor|export)\s+excel\b/i.test((el.innerText||el.textContent||'').replace(/[⬇⬆⇩↓↑📊]/g,' ').trim()));
- const settingsActions=document.querySelector('#page-settings .backup-actions');
+ const backupButton=all.find(el=>/unduh cadangan json/i.test((el.innerText||el.textContent||'').replace(/\\s+/g,' ').trim()));
+ const settingsActions=document.querySelector('#page-settings .backup-actions')||(backupButton&&backupButton.parentElement&&backupButton.parentElement.parentElement);
  if(!exportBtn&&settingsActions){
    exportBtn=document.createElement('button');exportBtn.type='button';exportBtn.className='primary excel-export-settings';exportBtn.textContent='📊 Ekspor Excel';
    settingsActions.insertBefore(exportBtn,settingsActions.firstChild);
