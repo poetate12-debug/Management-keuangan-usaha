@@ -930,10 +930,7 @@ v7 = r"""
 })();
 </script>
 """
-if not s.includes("const v7 = r") ... hmm script uses source.
 if (!s.includes("s.replace('</body>',v7+'</body>',1)")) {}
 s=s.replace("</body>",v7+"</body>",1)
 p.write_text(s)
-print("Feature upgrade applied",len(s))
-
 print("Feature upgrade applied",len(s))
