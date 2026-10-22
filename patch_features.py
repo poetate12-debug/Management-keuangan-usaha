@@ -795,7 +795,7 @@ v7 = r"""
    const id=currentBusiness;
    if(baseCloseBusiness)baseCloseBusiness();
    currentBusiness=null;window.ruCurrentBusinessId=null;
-   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)finishUiBack('business',id);
+   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)finishUiBack('business',id);
  };
  // Browser history also drives Android's native Back button via WebView.goBack().
  const uiStack=[];let uiSeq=0,pendingUiBack=false,suppressPageHistory=false;
@@ -823,7 +823,7 @@ v7 = r"""
    if(typeof originalCloseModal==='function')originalCloseModal(id);
    else{const el=document.getElementById(id);if(el)el.style.display='none'}
    const top=uiStack[uiStack.length-1];
-   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)finishUiBack('modal',id);
+   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)finishUiBack('modal',id);
    updateBodyLock();
  };
  function updateBodyLock(){
@@ -867,7 +867,7 @@ v7 = r"""
  const baseOpenSub=window.openBusinessSubPage;
  window.openBusinessSubPage=function(kind){
    const id=currentBusiness||window.ruCurrentBusinessId;if(!id)return;
-   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)pushUi('subpage',id);
+   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)pushUi('subpage',id);
    if(kind==='categories'||kind==='products'){
      if(typeof baseOpenSub==='function')baseOpenSub(kind);
      setTimeout(()=>{
@@ -950,7 +950,7 @@ v7 = r"""
   window.closeModal=function(id){
     if(typeof ruBaseCloseModal==='function')ruBaseCloseModal(id);
     else{const el=document.getElementById(id);if(el)el.style.display='none'}
-    finishUiBack('modal',id);ruUpdateBodyLock();
+    if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)finishUiBack('modal',id);ruUpdateBodyLock();
   };
   function ruUpdateBodyLock(){
     const visible=[...document.querySelectorAll('.modal-backdrop')].some(el=>getComputedStyle(el).display!=='none');
@@ -971,14 +971,14 @@ v7 = r"""
   window.openBusinessDetail=function(id){
     const result=ruBaseOpenBusiness&&ruBaseOpenBusiness(id);
     currentBusiness=id;window.ruCurrentBusinessId=id;addPhotoView(id);
-    if(!window.ruSuppressBusinessHistory)pushUi('business',id);
+    if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory&&!window.ruSuppressBusinessHistory)pushUi('business',id);
     return result;
   };
   window.closeBusinessDetail=function(){
     const id=currentBusiness;
     if(ruBaseCloseBusiness)ruBaseCloseBusiness();
     currentBusiness=null;window.ruCurrentBusinessId=null;
-    finishUiBack('business',id);
+    if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)finishUiBack('business',id);
   };
   const ruBaseOpenBusinessSub=window.openBusinessSubPage;
   window.openBusinessSubPage=function(kind){
@@ -1032,6 +1032,160 @@ v7 = r"""
 })();
 </script>
 """
-s=s.replace("</body>",v7+"</body>",1)
+v8 = r"""
+<script>
+(function(){
+  window.ruUseSingleNavigationStack=true;
+  window.ruSuppressLegacyHistory=false;
+  let ruStack=[],ruSeq=0,ruActiveBusiness=null,ruActiveSub=null;
+  const legacyGo=window.go,legacyOpenBusiness=window.openBusinessDetail,legacyCloseBusiness=window.closeBusinessDetail;
+  const legacyOpenSub=window.openBusinessSubPage,legacyCloseModal=window.closeModal;
+  let modalHandoff=null;
+  function currentPage(){const n=document.querySelector('.section.active');return n?n.id.replace(/^page-/,''):'dashboard'}
+  function pushEntry(entry){ruStack.push(entry);const seq=++ruSeq;try{history.pushState({ruUnified:true,seq},'','#ru-state-'+seq)}catch(e){}}
+  function callLegacy(fn){window.ruSuppressLegacyHistory=true;window.ruSuppressBusinessHistory=true;try{return typeof fn==='function'?fn():undefined}finally{window.ruSuppressLegacyHistory=false;window.ruSuppressBusinessHistory=false}}
+  function rawGo(page){return callLegacy(()=>legacyGo&&legacyGo(page))}
+  function rawOpenBusiness(id){return callLegacy(()=>legacyOpenBusiness&&legacyOpenBusiness(id))}
+  function rawCloseBusiness(){return callLegacy(()=>legacyCloseBusiness&&legacyCloseBusiness())}
+  function rawOpenSub(kind){return callLegacy(()=>legacyOpenSub&&legacyOpenSub(kind))}
+  function business(id){return (state.businesses||[]).find(b=>b.id===id)}
+  function photoIcon(b){const n=String(b&&b.name||'').toLowerCase();if(b&&b.photoData)return '<img alt="Foto usaha" src="'+b.photoData+'">';if(/foto|studio|cetak|print/.test(n))return '📷';if(/wifi|internet/.test(n))return '📡';if(/cctv|alarm|security/.test(n))return '🛡️';if(/delivery|antar|kurir/.test(n))return '🛵';return '🏪'}
+  function refreshPhoto(id){const b=business(id),logo=document.querySelector('#businessDetailView .business-detail-logo');if(b&&logo)logo.innerHTML=photoIcon(b)}
+  function isVisibleModal(el){return !!(el&&getComputedStyle(el).display!=='none')}
+  function topVisibleModal(){return [...document.querySelectorAll('.modal-backdrop')].reverse().find(isVisibleModal)}
+  function lockScroll(){const yes=!!topVisibleModal();document.body.style.overflow=yes?'hidden':'';document.body.style.overscrollBehavior=yes?'none':''}
+  function currentEntry(){return ruStack[ruStack.length-1]}
+  function swapModalEntry(from,to){
+    const top=currentEntry(),fromEl=document.getElementById(from);
+    if(fromEl)fromEl.style.display='none';
+    if(top&&top.kind==='modal'&&top.id===from){
+      top.id=to;
+      const st=history.state||{};
+      try{history.replaceState({ruUnified:true,seq:st.seq||ruSeq},'','#ru-state-'+(st.seq||ruSeq)+'-'+to)}catch(e){}
+    }else{
+      pushEntry({kind:'modal',id:to});
+    }
+    lockScroll();
+  }
+  function startModalHandoff(from,to,invoke){modalHandoff={from,to};swapModalEntry(from,to);try{invoke()}finally{modalHandoff=null}}
+  window.go=function(page){
+    const from=currentPage();
+    if(from!==page)pushEntry({kind:'page',page:from});
+    rawGo(page);
+  };
+  window.openBusinessDetail=function(id){
+    const b=business(id);if(!b)return;
+    const from=currentPage();
+    if(from!=='businesses'){
+      pushEntry({kind:'page',page:from});
+      rawGo('businesses');
+    }
+    pushEntry({kind:'business',id,page:'businesses'});
+    ruActiveBusiness=id;ruActiveSub=null;window.ruCurrentBusinessId=id;
+    rawOpenBusiness(id);refreshPhoto(id);window.scrollTo(0,0);
+  };
+  window.closeBusinessDetail=function(){
+    const top=currentEntry();
+    if(top&&top.kind==='business'){history.back();return}
+    const id=ruActiveBusiness;ruActiveBusiness=null;ruActiveSub=null;window.ruCurrentBusinessId=null;rawCloseBusiness();
+  };
+  window.openBusinessSubPage=function(kind){
+    const id=ruActiveBusiness||window.ruCurrentBusinessId;if(!id)return;
+    pushEntry({kind:'subpage',id,subpage:kind});ruActiveSub=kind;
+    rawOpenSub(kind);
+  };
+  window.closeBusinessSub=function(){
+    const top=currentEntry();
+    if(top&&top.kind==='subpage'){history.back();return}
+    if(ruActiveBusiness){rawOpenBusiness(ruActiveBusiness);refreshPhoto(ruActiveBusiness);ruActiveSub=null}
+  };
+  window.startTypedTransaction=function(type){
+    if(type!=='income'&&type!=='expense'&&type!=='transfer')return;
+    window.ruNextTransactionType=type;
+    const action=()=>{
+      // The legacy function fills its private selected-type state; close/open are handed off as one modal history entry.
+      const fn=window.ruLegacyStartTyped;
+      if(typeof fn==='function')fn(type);
+      else{
+        const tp=document.getElementById('txTypePicker');if(tp)tp.style.display='none';
+        if(type==='transfer'){
+          if(typeof window.openTransactionForm==='function')window.openTransactionForm('','');
+          const t=document.getElementById('fType');if(t)t.value='transfer';
+          if(typeof window.updateTxForm==='function')window.updateTxForm();
+          const m=document.getElementById('txModal');if(m)m.style.display='flex';
+        }else{
+          if(typeof window.renderBusinessPicker==='function')renderBusinessPicker();
+          const m=document.getElementById('businessPickerModal');if(m)m.style.display='flex';
+        }
+      }
+    };
+    startModalHandoff('txTypePicker',type==='transfer'?'txModal':'businessPickerModal',action);
+  };
+  const legacyStartTyped=window.startTypedTransaction;
+  window.ruLegacyStartTyped=legacyStartTyped;
+  window.chooseBusinessTyped=function(id){
+    window.ruChosenBusinessId=id;
+    startModalHandoff('businessPickerModal','txModal',()=>{
+      if(typeof window.ruLegacyChooseBusiness==='function')window.ruLegacyChooseBusiness(id);
+      else{
+        if(typeof window.openTransactionForm==='function')window.openTransactionForm('',id==='__general__'?'':id);
+        const t=document.getElementById('fType');if(t&&window.ruNextTransactionType)t.value=window.ruNextTransactionType;
+        const b=document.getElementById('fBusiness');if(b)b.value=id==='__general__'?'':id;
+        if(typeof window.updateTxForm==='function')window.updateTxForm();
+        const m=document.getElementById('txModal');if(m)m.style.display='flex';
+      }
+    });
+  };
+  window.ruLegacyChooseBusiness=window.chooseBusinessTyped;
+  window.closeModal=function(id){
+    const top=currentEntry();
+    if(modalHandoff&&modalHandoff.from===id){const el=document.getElementById(id);if(el)el.style.display='none';return}
+    if(top&&top.kind==='modal'&&top.id===id){history.back();return}
+    if(typeof legacyCloseModal==='function')callLegacy(()=>legacyCloseModal(id));
+    else{const el=document.getElementById(id);if(el)el.style.display='none'}
+    lockScroll();
+  };
+  function returnToBusinessDetail(id){
+    if(!id)return;
+    ruActiveBusiness=id;ruActiveSub=null;window.ruCurrentBusinessId=id;
+    rawOpenBusiness(id);refreshPhoto(id);window.scrollTo(0,0);
+  }
+  window.addEventListener('popstate',function(event){
+    if(!window.ruUseSingleNavigationStack)return;
+    event.stopImmediatePropagation();
+    const entry=ruStack.pop();
+    if(entry){
+      if(entry.kind==='modal'){
+        const el=document.getElementById(entry.id);if(el)el.style.display='none';
+        lockScroll();return;
+      }
+      if(entry.kind==='subpage'){returnToBusinessDetail(entry.id);return}
+      if(entry.kind==='business'){
+        ruActiveBusiness=null;ruActiveSub=null;window.ruCurrentBusinessId=null;rawCloseBusiness();lockScroll();return;
+      }
+      if(entry.kind==='page'){rawGo(entry.page||'dashboard');lockScroll();return}
+    }
+    const modal=topVisibleModal();
+    if(modal){modal.style.display='none';lockScroll();return}
+    if(ruActiveSub&&ruActiveBusiness){returnToBusinessDetail(ruActiveBusiness);return}
+    if(ruActiveBusiness){ruActiveBusiness=null;window.ruCurrentBusinessId=null;rawCloseBusiness();return}
+    if(currentPage()!=='dashboard')rawGo('dashboard');
+  },true);
+  document.querySelectorAll('.modal-backdrop').forEach(el=>{
+    new MutationObserver(()=>{
+      setTimeout(()=>{
+        const visible=topVisibleModal(),top=currentEntry();
+        if(visible){
+          if(modalHandoff&&modalHandoff.to===visible.id){lockScroll();return}
+          if(!top||top.kind!=='modal'||top.id!==visible.id)pushEntry({kind:'modal',id:visible.id});
+        }
+        lockScroll();
+      },20);
+    }).observe(el,{attributes:true,attributeFilter:['style','class']});
+  });
+})();
+</script>
+"""
+s=s.replace("</body>",v7+v8+"</body>",1)
 p.write_text(s)
 print("Feature upgrade applied",len(s))
