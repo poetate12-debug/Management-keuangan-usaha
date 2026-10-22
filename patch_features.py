@@ -138,7 +138,7 @@ document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(se
 function exportExcel(){
  try{
   const text=v=>String(v===null||v===undefined?'':v);
-  const xml=v=>text(v).replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  const xml=v=>text(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
   const cell=(v,numeric=false)=>'<Cell><Data ss:Type="'+(numeric&&Number.isFinite(Number(v))?'Number':'String')+'">'+xml(v)+'</Data></Cell>';
   const sheet=(name,headers,rows,numericCols=[])=>'<Worksheet ss:Name="'+xml(name).slice(0,31)+'"><Table>'+[headers,...rows].map((row,ri)=>'<Row>'+row.map((v,ci)=>cell(v,ri>0&&numericCols.includes(ci))).join('')+'</Row>').join('')+'</Table></Worksheet>';
   const businesses=state.businesses||[],accounts=state.accounts||[],categories=state.categories||[],products=state.products||[],transactions=state.transactions||[],hpp=state.hppRecords||[];
