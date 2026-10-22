@@ -1327,7 +1327,7 @@ if "RuangUsaha finance fixes v1" not in s:
     reports_marker = '<section class="section" id="page-reports">'
     if reports_marker not in s:
         import re
-        m = re.search(r'<section[^>]*id=["\\']page-reports["\\'][^>]*>', s, re.I)
+        m = re.search("<section[^>]*id=[\\\"']page-reports[\\\"'][^>]*>", s, re.I)
         if not m:
             raise SystemExit("Bagian halaman Laporan tidak ditemukan")
         reports_marker = m.group(0)
@@ -1356,9 +1356,9 @@ if "RuangUsaha finance fixes v1" not in s:
   function rupiah(v){ return 'Rp' + (Number(v)||0).toLocaleString('id-ID'); }
   function monthKey(t){
     var d = String(t && t.date || '');
-    if (/^\\d{4}-\\d{2}/.test(d)) return d.slice(0,7);
+    if (/^\d{4}-\d{2}/.test(d)) return d.slice(0,7);
     var m = String(t && (t.reportMonth || t.monthKey || t.month) || '');
-    return /^\\d{4}-\\d{2}/.test(m) ? m.slice(0,7) : '';
+    return /^\d{4}-\d{2}/.test(m) ? m.slice(0,7) : '';
   }
   function typeText(t){ return t==='income'?'Pemasukan':t==='expense'?'Pengeluaran':'Transfer'; }
   function categoryText(id){
@@ -1367,7 +1367,7 @@ if "RuangUsaha finance fixes v1" not in s:
   }
   function dateText(t){
     var d=String(t && t.date || '');
-    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(d)) return d;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
     if (monthKey(t)) return 'Bulan '+monthKey(t);
     return 'Tanggal tidak tercantum';
   }
