@@ -141,35 +141,32 @@ document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(se
 })();
 function exportExcel(){
  try{
-  const text=v=>String(v===null||v===undefined?'':v);
-  const xml=v=>text(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-  const cell=(v,numeric=false)=>'<Cell><Data ss:Type="'+(numeric&&Number.isFinite(Number(v))?'Number':'String')+'">'+xml(v)+'</Data></Cell>';
-  const sheet=(name,headers,rows,numericCols=[])=>'<Worksheet ss:Name="'+xml(name).slice(0,31)+'"><Table>'+[headers,...rows].map((row,ri)=>'<Row>'+row.map((v,ci)=>cell(v,ri>0&&numericCols.includes(ci))).join('')+'</Row>').join('')+'</Table></Worksheet>';
+  const clean=v=>String(v===null||v===undefined?'':v);
+  const csv=v=>'"'+clean(v).replace(/"/g,'""')+'"';
+  const row=values=>values.map(csv).join(',');
   const businesses=state.businesses||[],accounts=state.accounts||[],categories=state.categories||[],products=state.products||[],transactions=state.transactions||[],hpp=state.hppRecords||[];
-  const txRows=transactions.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).map(t=>[
-   t.date||'',t.type==='income'?'Pemasukan':t.type==='expense'?'Pengeluaran':'Transfer',
-   t.businessId?businessName(t.businessId):'',t.categoryId?categoryName(t.categoryId):'',
-   t.accountId?accountName(t.accountId):'',t.toAccountId?accountName(t.toAccountId):'',
-   Number(t.amount)||0,t.note||'',(t.items||[]).map(i=>(i.productName||(products.find(p=>p.id===i.productId)||{}).name||'Produk')+' x '+(Number(i.qty)||0)+' @ '+(Number(i.price)||0)).join('; ')
-  ]);
-  const sheets=[
-   sheet('Transaksi',['Tanggal','Jenis','Usaha','Kategori','Akun asal','Akun tujuan','Nominal (Rp)','Catatan','Rincian produk'],txRows,[6]),
-   sheet('Usaha',['ID usaha','Nama usaha','Jenis usaha','Status'],businesses.map(b=>[b.id||'',b.name||'',b.type||'',b.archived?'Diarsipkan':'Aktif'])),
-   sheet('Akun',['Nama akun','Jenis akun','Saldo awal (Rp)'],accounts.map(a=>[a.name||'',a.type||'',Number(a.opening)||0]),[2]),
-   sheet('Kategori',['Usaha','Jenis','Nama kategori'],categories.map(c=>[c.businessId?businessName(c.businessId):'Umum',c.type==='income'?'Pemasukan':'Pengeluaran',c.name||''])),
-   sheet('Produk',['Usaha','Nama produk','Harga jual (Rp)','Satuan'],products.map(p=>[businessName(p.businessId),p.name||'',Number(p.price)||0,p.unit||'pcs']),[2]),
-   sheet('HPP',['Tanggal','Usaha','Nama produk','Jumlah unit','Biaya bahan baku (Rp)','Tenaga kerja (Rp)','Overhead (Rp)','Total biaya (Rp)','HPP per unit (Rp)'],hpp.map(h=>[h.date||'',businessName(h.businessId),h.productName||'',Number(h.quantity)||0,Number(h.materialCost)||0,Number(h.laborCost)||0,Number(h.overheadCost)||0,Number(h.totalCost)||0,Number(h.unitCost)||0]),[3,4,5,6,7,8])
-  ];
-  const workbook='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'+sheets.join('')+'</Workbook>';
-  const filename='KasUsaha-Laporan-'+new Date().toISOString().slice(0,10)+'.xls',mime='application/vnd.ms-excel';
+  const lines=[row(['LAPORAN KASUSAHA','Tanggal ekspor',new Date().toLocaleDateString('id-ID')]),'',row(['TRANSAKSI']),row(['Tanggal','Jenis','Usaha','Kategori','Akun asal','Akun tujuan','Nominal (Rp)','Catatan','Rincian produk'])];
+  transactions.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).forEach(t=>lines.push(row([t.date||'',t.type==='income'?'Pemasukan':t.type==='expense'?'Pengeluaran':'Transfer',t.businessId?businessName(t.businessId):'',t.categoryId?categoryName(t.categoryId):'',t.accountId?accountName(t.accountId):'',t.toAccountId?accountName(t.toAccountId):'',Number(t.amount)||0,t.note||'',(t.items||[]).map(it=>(it.productName||(products.find(p=>p.id===it.productId)||{}).name||'Produk')+' x '+(Number(it.qty)||0)+' @ '+(Number(it.price)||0)).join('; ')])));
+  lines.push('',row(['DAFTAR USAHA']),row(['ID usaha','Nama usaha','Jenis usaha','Status']));
+  businesses.forEach(b=>lines.push(row([b.id||'',b.name||'',b.type||'',b.archived?'Diarsipkan':'Aktif'])));
+  lines.push('',row(['AKUN']),row(['Nama akun','Jenis akun','Saldo awal (Rp)']));
+  accounts.forEach(a=>lines.push(row([a.name||'',a.type||'',Number(a.opening)||0])));
+  lines.push('',row(['KATEGORI']),row(['Usaha','Jenis','Nama kategori']));
+  categories.forEach(c=>lines.push(row([c.businessId?businessName(c.businessId):'Umum',c.type==='income'?'Pemasukan':'Pengeluaran',c.name||''])));
+  lines.push('',row(['PRODUK']),row(['Usaha','Nama produk','Harga jual (Rp)','Satuan']));
+  products.forEach(p=>lines.push(row([businessName(p.businessId),p.name||'',Number(p.price)||0,p.unit||'pcs'])));
+  lines.push('',row(['HPP']),row(['Tanggal','Usaha','Nama produk','Jumlah unit','Biaya bahan baku (Rp)','Tenaga kerja (Rp)','Overhead (Rp)','Total biaya (Rp)','HPP per unit (Rp)']));
+  hpp.forEach(h=>lines.push(row([h.date||'',businessName(h.businessId),h.productName||'',Number(h.quantity)||0,Number(h.materialCost)||0,Number(h.laborCost)||0,Number(h.overheadCost)||0,Number(h.totalCost)||0,Number(h.unitCost)||0])));
+  const csvText='\\uFEFF'+lines.join('\\r\\n');
+  const filename='KasUsaha-Laporan-'+new Date().toISOString().slice(0,10)+'.csv',mime='text/csv';
   if(window.AndroidDownloads&&typeof window.AndroidDownloads.saveFile==='function'){
-    const bytes=new TextEncoder().encode(workbook),parts=[];for(let i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode(...bytes.subarray(i,i+8192)));
-    window.AndroidDownloads.saveFile(filename,mime,btoa(parts.join('')));
+   const bytes=new TextEncoder().encode(csvText),parts=[];for(let k=0;k<bytes.length;k+=8192)parts.push(String.fromCharCode(...bytes.subarray(k,k+8192)));
+   window.AndroidDownloads.saveFile(filename,mime,btoa(parts.join('')));
   }else{
-    const blob=new Blob(['\\uFEFF',workbook],{type:mime+';charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
+   const blob=new Blob([csvText],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
   }
-  showToast('Ekspor Excel disiapkan. Periksa folder Unduhan.');
+  showToast('Laporan CSV untuk Excel disiapkan. Periksa folder Unduhan.');
  }catch(err){alert('Ekspor Excel gagal: '+(err&&err.message?err.message:String(err)))}
 }
 function exportBackup(){
