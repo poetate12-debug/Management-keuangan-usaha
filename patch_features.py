@@ -612,6 +612,328 @@ v6 = r"""
 </script>
 """
 if "</body>" not in s: raise SystemExit("body closing tag not found before v6")
+
 s=s.replace("</body>",v6+"</body>",1)
+# Photo-enabled business cards, reliable Android Back behavior, and itemized raw-material HPP.
+v7 = r"""
+<style>
+/* Elegant business cards with individual photos */
+#businessesList.ru-business-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ru-business-card{min-width:0;overflow:hidden;position:relative;background:#fff;border:1px solid #e9eaf1;border-radius:19px;box-shadow:0 5px 18px #2024470a;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.ru-business-card:active,.ru-dashboard-business:active{transform:scale(.985)}
+.ru-business-cover{height:124px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e7edff,#dff7f2 58%,#f4efff)}
+.ru-business-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.ru-business-cover-fallback{display:flex;align-items:center;justify-content:center;width:68px;height:68px;border-radius:22px;background:#ffffffb8;box-shadow:0 7px 20px #282b4e12;font-size:36px}
+.ru-business-photo-btn{position:absolute;right:9px;top:9px;width:34px;height:34px;border:0;border-radius:12px;background:#11182a99;color:#fff;display:grid;place-items:center;font-size:16px;backdrop-filter:blur(8px)}
+.ru-business-info{padding:12px 12px 8px}
+.ru-business-name{font-size:14px;font-weight:800;line-height:1.25;overflow-wrap:anywhere}
+.ru-business-type{font-size:11px;color:var(--muted);margin-top:5px;min-height:28px;line-height:1.35;overflow-wrap:anywhere}
+.ru-business-status{display:inline-flex;font-size:10px;font-weight:700;border-radius:20px;padding:4px 8px;background:#edf7f4;color:#187a66;margin-top:8px}
+.ru-business-status.archived{background:#f4f1f1;color:#7e6262}
+.ru-business-actions{display:flex;border-top:1px solid #f0f0f5;padding:8px;gap:7px}
+.ru-business-actions button{flex:1;font-size:11px;min-width:0;padding:7px 3px;border-radius:9px;background:#f5f6fb;color:#424861}
+.ru-business-actions button.archive{color:#8d5d5d}
+#businessesList .empty{grid-column:1/-1}
+.ru-photo-picker{display:none!important}
+#businessDetailView .business-detail-logo{overflow:hidden}
+#businessDetailView .business-detail-logo img{width:100%;height:100%;object-fit:cover;display:block}
+.ru-detail-photo{display:inline-flex;align-items:center;gap:6px;margin:8px 0 0;padding:7px 10px!important;border-radius:10px!important;background:#eef1ff!important;color:#4a57b8!important;font-size:11px!important}
+#businessPerformance{display:grid;gap:12px}
+.ru-dashboard-business{position:relative;cursor:pointer;background:#fff!important;border:1px solid #e9eaf2!important;border-radius:19px!important;padding:15px!important;box-shadow:0 6px 20px #2024470a!important;transition:transform .15s;min-width:0}
+.ru-dashboard-business .biz-head{align-items:center;gap:11px}
+.ru-dashboard-business .biz-icon{width:53px!important;height:53px!important;flex:0 0 53px!important;border-radius:16px!important;background:linear-gradient(135deg,#e6edff,#e1f7f0)!important;color:#4d5bc5!important;font-size:26px!important;overflow:hidden}
+.ru-dashboard-business .biz-icon img{height:100%;width:100%;object-fit:cover;display:block}
+.ru-dashboard-business .biz-name{font-size:15px!important;font-weight:850!important}
+.ru-dashboard-business .biz-type{font-size:11px!important;line-height:1.3;margin-top:3px}
+.ru-dashboard-business .biz-open{font-size:10px;padding:5px 8px}
+.ru-dashboard-business .biz-actions{display:none!important}
+.ru-dashboard-business .biz-stats{margin-top:13px;padding-top:12px;gap:8px}
+.ru-dashboard-business .biz-stats>div{min-width:0}
+.ru-dashboard-business .biz-stats small{font-size:10px}
+.ru-dashboard-business .biz-stats strong{font-size:clamp(11px,3.5vw,15px);overflow-wrap:anywhere}
+.ru-dashboard-business::after{content:"›";position:absolute;right:14px;top:16px;font-size:23px;line-height:1;color:#9ba2b7;pointer-events:none}
+#businessSubPage .hpp-material-row{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(52px,.55fr) minmax(82px,.85fr) 32px;gap:7px;align-items:end;background:#f8f9fc;border:1px solid var(--line);padding:9px;border-radius:13px;margin:8px 0}
+#businessSubPage .hpp-material-row .field{min-width:0}
+#businessSubPage .hpp-material-row label{font-size:10px}
+#businessSubPage .hpp-material-row input{min-width:0;width:100%;padding:9px 6px;font-size:13px}
+#businessSubPage .hpp-material-row button{padding:8px 6px;min-height:39px}
+#businessSubPage .hpp-material-total{display:flex;justify-content:space-between;align-items:center;background:#f0f4ff;padding:12px;border-radius:12px;margin-top:9px}
+#businessSubPage .hpp-material-total strong{color:#4657bf}
+@media(max-width:700px){
+ #businessesList.ru-business-grid{gap:9px}
+ .ru-business-cover{height:104px}
+ .ru-business-info{padding:10px 9px 7px}
+ .ru-business-name{font-size:13px}
+ .ru-business-type{font-size:10px;min-height:27px}
+ .ru-business-actions{padding:7px 6px;gap:5px}
+ .ru-business-actions button{font-size:10px}
+ .ru-dashboard-business{padding:13px!important}
+ .ru-dashboard-business .biz-open{margin-right:16px}
+ #businessSubPage .hpp-material-row{grid-template-columns:minmax(0,1fr) 55px minmax(76px,.8fr) 30px;gap:4px;padding:6px}
+ #businessSubPage .hpp-material-row input{font-size:12px;padding:8px 4px}
+}
+</style>
+<script>
+(function(){
+ const normal=v=>String(v||'').trim().toLowerCase();
+ const iconFor=b=>{
+   const n=normal(b&&b.name);
+   if(/studio|foto|fotografi|cetak|print/.test(n))return '📷';
+   if(/wifi|internet|net/.test(n))return '📡';
+   if(/cctv|alarm|security|sentinel|keamanan/.test(n))return '🛡️';
+   if(/delivery|gelis|antar|kurir/.test(n))return '🛵';
+   if(/kuliner|makan|warung|cafe/.test(n))return '🍜';
+   return '🏪';
+ };
+ function addPhotoView(id){
+   const b=(state.businesses||[]).find(x=>x.id===id),detail=document.getElementById('businessDetailView');
+   if(!b||!detail)return;
+   let logo=detail.querySelector('.business-detail-logo');
+   if(logo)logo.innerHTML=b.photoData?'<img alt="Foto usaha" src="'+b.photoData+'">':iconFor(b);
+   const title=detail.querySelector('.business-detail-title');
+   if(title){
+     let holder=detail.querySelector('.ru-photo-control');
+     if(!holder){
+       holder=document.createElement('div');holder.className='ru-photo-control';
+       holder.innerHTML='<button type="button" class="ru-detail-photo">📷 Ganti foto usaha</button><input class="ru-photo-picker" type="file" accept="image/*">';
+       title.parentElement.appendChild(holder);
+       const btn=holder.querySelector('button'),input=holder.querySelector('input');
+       btn.addEventListener('click',e=>{e.stopPropagation();input.click()});
+       input.addEventListener('change',e=>savePhotoFile(id,e.target.files&&e.target.files[0],()=>addPhotoView(id)));
+     }
+   }
+ }
+ function savePhotoFile(id,file,done){
+   if(!file)return;
+   if(!/^image\//.test(file.type||''))return alert('Pilih file gambar untuk foto usaha.');
+   const reader=new FileReader();
+   reader.onerror=()=>alert('Foto tidak dapat dibaca.');
+   reader.onload=()=>{
+     const img=new Image();
+     img.onerror=()=>alert('File gambar tidak valid.');
+     img.onload=()=>{
+       try{
+         const maxW=800,maxH=600,scale=Math.min(1,maxW/img.width,maxH/img.height),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale)),canvas=document.createElement('canvas');
+         canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(img,0,0,w,h);
+         const data=canvas.toDataURL('image/jpeg',.74),b=(state.businesses||[]).find(x=>x.id===id);if(!b)return;
+         b.photoData=data;save();
+         if(typeof done==='function')done();
+         showToast('Foto usaha berhasil disimpan.');
+       }catch(err){alert('Foto tidak dapat disimpan. Pilih gambar yang lebih kecil.')}
+     };
+     img.src=String(reader.result||'');
+   };
+   reader.readAsDataURL(file);
+ }
+ function renderBusinessCards(){
+   const list=document.getElementById('businessesList');if(!list)return;
+   list.classList.add('ru-business-grid');
+   list.innerHTML='';
+   const items=state.businesses||[];
+   if(!items.length){list.innerHTML='<div class="empty">Belum ada usaha. Tekan Tambah usaha untuk memulai.</div>';return;}
+   items.forEach(b=>{
+     const card=document.createElement('article');card.className='ru-business-card';card.tabIndex=0;card.setAttribute('role','button');card.setAttribute('aria-label','Buka detail '+b.name);
+     const cover=document.createElement('div');cover.className='ru-business-cover';
+     if(b.photoData){const img=document.createElement('img');img.src=b.photoData;img.alt='Foto '+b.name;cover.appendChild(img)}
+     else{const mark=document.createElement('div');mark.className='ru-business-cover-fallback';mark.textContent=iconFor(b);cover.appendChild(mark)}
+     const choose=document.createElement('button');choose.type='button';choose.className='ru-business-photo-btn';choose.title='Pilih foto usaha';choose.textContent='📷';
+     const input=document.createElement('input');input.type='file';input.accept='image/*';input.className='ru-photo-picker';
+     choose.addEventListener('click',e=>{e.stopPropagation();input.click()});
+     input.addEventListener('click',e=>e.stopPropagation());
+     input.addEventListener('change',e=>savePhotoFile(b.id,e.target.files&&e.target.files[0],()=>renderBusinessCards()));
+     cover.append(choose,input);
+     const info=document.createElement('div');info.className='ru-business-info';
+     const name=document.createElement('div');name.className='ru-business-name';name.textContent=b.name;
+     const type=document.createElement('div');type.className='ru-business-type';type.textContent=b.type||'Usaha';
+     const status=document.createElement('span');status.className='ru-business-status'+(b.archived?' archived':'');status.textContent=b.archived?'Diarsipkan':'Aktif';
+     info.append(name,type,status);
+     const actions=document.createElement('div');actions.className='ru-business-actions';
+     const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.addEventListener('click',e=>{e.stopPropagation();openBusiness(b.id)});
+     const archive=document.createElement('button');archive.type='button';archive.className='archive';archive.textContent=b.archived?'Aktifkan':'Arsipkan';archive.addEventListener('click',e=>{e.stopPropagation();toggleBusinessArchive(b.id);});
+     actions.append(edit,archive);
+     card.append(cover,info,actions);
+     card.addEventListener('click',()=>window.openBusinessDetail(b.id));
+     card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();window.openBusinessDetail(b.id)}});
+     list.appendChild(card);
+   });
+ }
+ const baseRenderBusinesses=window.renderBusinesses;
+ if(typeof baseRenderBusinesses==='function')window.renderBusinesses=function(){baseRenderBusinesses();renderBusinessCards()};
+ const baseRenderDashboard=window.renderBusinessDashboard;
+ function decorateDashboardCards(){
+   const host=document.getElementById('businessPerformance');if(!host)return;
+   host.querySelectorAll('.biz-card').forEach(card=>{
+     const title=card.querySelector('.biz-name'),name=title?title.textContent:'',b=(state.businesses||[]).find(x=>normal(x.name)===normal(name));
+     if(!b)return;
+     card.classList.add('ru-dashboard-business');card.setAttribute('role','button');card.setAttribute('tabindex','0');card.setAttribute('aria-label','Lihat detail usaha '+b.name);
+     card.querySelector('.biz-actions')?.remove();
+     const icon=card.querySelector('.biz-icon');
+     if(icon)icon.innerHTML=b.photoData?'<img alt="" src="'+b.photoData+'">':iconFor(b);
+     card.onclick=()=>window.openBusinessDetail(b.id);
+     card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();window.openBusinessDetail(b.id)}};
+   });
+ }
+ if(typeof baseRenderDashboard==='function')window.renderBusinessDashboard=function(){baseRenderDashboard();decorateDashboardCards()};
+ const baseOpenBusiness=window.openBusinessDetail;
+ let currentBusiness=null;
+ window.openBusinessDetail=function(id){
+   const result=baseOpenBusiness&&baseOpenBusiness(id);
+   currentBusiness=id;window.ruCurrentBusinessId=id;
+   addPhotoView(id);
+   if(!window.ruSuppressBusinessHistory)pushUi('business',id);
+   return result;
+ };
+ const baseCloseBusiness=window.closeBusinessDetail;
+ function restoreDetail(id){
+   currentBusiness=id||currentBusiness;
+   if(currentBusiness&&baseOpenBusiness){
+     window.ruSuppressBusinessHistory=true;baseOpenBusiness(currentBusiness);window.ruSuppressBusinessHistory=false;
+     addPhotoView(currentBusiness);
+   }
+ }
+ window.closeBusinessDetail=function(){
+   const id=currentBusiness;
+   if(baseCloseBusiness)baseCloseBusiness();
+   currentBusiness=null;window.ruCurrentBusinessId=null;
+   finishUiBack('business',id);
+ };
+ // Browser history also drives Android's native Back button via WebView.goBack().
+ const uiStack=[];let uiSeq=0,pendingUiBack=false,suppressPageHistory=false;
+ function pushUi(kind,id,from){
+   const top=uiStack[uiStack.length-1];
+   if(top&&top.kind===kind&&top.id===id)return;
+   uiSeq++;const item={kind,id,from,seq:uiSeq};uiStack.push(item);
+   try{history.pushState({ruApp:true,seq:uiSeq},'','#ru-'+kind+'-'+uiSeq)}catch(e){}
+ }
+ function finishUiBack(kind,id){
+   const top=uiStack[uiStack.length-1];
+   if(top&&top.kind===kind&&(id==null||top.id===id)&&history.state&&history.state.ruApp){
+     pendingUiBack=true;history.back();
+   }
+ }
+ const baseGo=window.go;
+ let pageBeforeNav=null;
+ window.go=function(page){
+   const active=document.querySelector('.section.active'),from=active?active.id.replace('page-',''):'dashboard';
+   if(!suppressPageHistory&&from!==page)pushUi('page',from);
+   if(typeof baseGo==='function')baseGo(page);
+ };
+ const originalCloseModal=window.closeModal;
+ window.closeModal=function(id){
+   if(typeof originalCloseModal==='function')originalCloseModal(id);
+   else{const el=document.getElementById(id);if(el)el.style.display='none'}
+   const top=uiStack[uiStack.length-1];
+   finishUiBack('modal',id);
+   updateBodyLock();
+ };
+ function updateBodyLock(){
+   const visible=[...document.querySelectorAll('.modal-backdrop')].some(el=>getComputedStyle(el).display!=='none');
+   if(visible){document.body.style.overflow='hidden';document.body.style.overscrollBehavior='none'}
+   else{document.body.style.overflow='';document.body.style.overscrollBehavior=''}
+ }
+ function topVisibleModal(){
+   return [...document.querySelectorAll('.modal-backdrop')].reverse().find(el=>getComputedStyle(el).display!=='none');
+ }
+ function observeModalOpen(){
+   const visible=topVisibleModal();
+   if(visible){
+     const top=uiStack[uiStack.length-1];
+     if(!top||top.kind!=='modal'||top.id!==visible.id)pushUi('modal',visible.id);
+   }
+   updateBodyLock();
+ }
+ document.querySelectorAll('.modal-backdrop').forEach(el=>{
+   new MutationObserver(()=>setTimeout(observeModalOpen,40)).observe(el,{attributes:true,attributeFilter:['style','class']});
+ });
+ window.addEventListener('popstate',()=>{
+   const entry=uiStack.pop();
+   if(pendingUiBack){pendingUiBack=false;updateBodyLock();return}
+   if(entry){
+     if(entry.kind==='modal'){const el=document.getElementById(entry.id);if(el)el.style.display='none';updateBodyLock();return}
+     if(entry.kind==='subpage'){restoreDetail(entry.id);return}
+     if(entry.kind==='business'){if(baseCloseBusiness)baseCloseBusiness();currentBusiness=null;window.ruCurrentBusinessId=null;return}
+     if(entry.kind==='page'){suppressPageHistory=true;if(typeof baseGo==='function')baseGo(entry.id||'dashboard');suppressPageHistory=false;return}
+   }
+   const active=document.querySelector('.section.active');
+   if(active&&active.id!=='page-dashboard'){suppressPageHistory=true;if(typeof baseGo==='function')baseGo('dashboard');suppressPageHistory=false}
+ });
+ // Both visible back buttons and Android hardware Back use this global function.
+ window.closeBusinessSub=function(){
+   const top=uiStack[uiStack.length-1];
+   if(top&&top.kind==='subpage'&&history.state&&history.state.ruApp){pendingUiBack=true;history.back()}
+   else if(currentBusiness)restoreDetail(currentBusiness);
+ };
+ const baseOpenSub=window.openBusinessSubPage;
+ window.openBusinessSubPage=function(kind){
+   const id=currentBusiness||window.ruCurrentBusinessId;if(!id)return;
+   pushUi('subpage',id);
+   if(kind==='categories'||kind==='products'){
+     if(typeof baseOpenSub==='function')baseOpenSub(kind);
+     setTimeout(()=>{
+       const panel=document.getElementById('businessCategorySettings');
+       if(panel)panel.style.display='block';
+       const heads=panel?[...panel.querySelectorAll('.panel-head')]:[];
+       if(heads[0])heads[0].style.display='none';
+       const chooser=panel&&panel.querySelector('.field');if(chooser)chooser.style.display='none';
+       const cats=document.getElementById('bizSettingsCategories'),products=document.getElementById('bizSettingsProducts');
+       if(cats)cats.style.display=kind==='categories'?'block':'none';
+       if(products)products.style.display=kind==='products'?'block':'none';
+       if(heads[1])heads[1].style.display=kind==='categories'?'flex':'none';
+       if(heads[2])heads[2].style.display=kind==='products'?'flex':'none';
+     },0);
+   }else if(kind==='hpp')renderHppWithMaterials(id);
+ };
+ function restoreCategoryProductVisibility(){
+   const panel=document.getElementById('businessCategorySettings');if(panel)panel.style.display='none';
+   restoreDetail(currentBusiness);
+ }
+ function renderHppWithMaterials(id){
+   const detail=document.getElementById('businessDetailView'),b=(state.businesses||[]).find(x=>x.id===id);if(!detail||!b)return;
+   if(!Array.isArray(state.hppRecords))state.hppRecords=[];
+   detail.innerHTML='<div id="businessSubPage"><div class="business-sub-head"><button type="button" class="small" onclick="closeBusinessSub()">← Kembali</button><div><h2>Perhitungan HPP</h2><div class="desc">'+esc(b.name)+'</div></div></div><div class="hpp-card"><p class="desc">Masukkan bahan baku satu per satu. Total bahan baku dihitung dari jumlah × harga per unit, lalu ditambah tenaga kerja dan overhead.</p><form id="hppForm"><div class="field"><label>Nama produk yang dibuat</label><input id="hppName" required maxlength="100" placeholder="Contoh: Cetak foto 10R"></div><div class="field"><label>Jumlah produk yang dihasilkan (unit)</label><input id="hppQty" required type="number" min="0.001" step="any" value="1"></div><div class="panel-head" style="margin-top:16px"><div><h3>Bahan baku</h3><div class="desc">Contoh: kertas foto, tinta, laminasi, lem.</div></div><button type="button" class="small" id="hppAddMaterial">＋ Bahan baku</button></div><div id="hppMaterials"></div><div class="hpp-material-total"><span>Total bahan baku</span><strong id="hppMaterialTotal">Rp0</strong></div><div class="hpp-grid" style="margin-top:14px"><div class="field"><label>Total tenaga kerja (Rp)</label><input id="hppLabor" required type="number" min="0" step="1" value="0"></div><div class="field"><label>Overhead lain (Rp)</label><input id="hppOverhead" required type="number" min="0" step="1" value="0"></div></div><div class="hpp-result"><small>Total biaya produksi</small><strong id="hppTotal">Rp0</strong><small style="display:block;margin-top:10px">HPP per unit</small><strong id="hppUnit">Rp0</strong></div><div class="form-actions" style="margin-top:14px"><button type="button" onclick="closeBusinessSub()">Batal</button><button type="submit" class="primary">Simpan HPP</button></div></form></div><h2 class="business-section-heading">Riwayat HPP usaha ini</h2><div id="hppHistory"></div></div>';
+   const materialsHost=document.getElementById('hppMaterials');
+   function addMaterial(v){
+     v=v||{};const row=document.createElement('div');row.className='hpp-material-row';
+     const name=document.createElement('div');name.className='field';name.innerHTML='<label>Nama bahan</label>';
+     const nameInput=document.createElement('input');nameInput.type='text';nameInput.className='hpp-m-name';nameInput.maxLength=80;nameInput.placeholder='Kertas foto, tinta…';nameInput.value=v.name||'';name.appendChild(nameInput);
+     const qty=document.createElement('div');qty.className='field';qty.innerHTML='<label>Jumlah</label>';
+     const qtyInput=document.createElement('input');qtyInput.type='number';qtyInput.className='hpp-m-qty';qtyInput.min='0';qtyInput.step='any';qtyInput.value=v.qty==null?'1':String(v.qty);qty.appendChild(qtyInput);
+     const cost=document.createElement('div');cost.className='field';cost.innerHTML='<label>Harga/unit Rp</label>';
+     const costInput=document.createElement('input');costInput.type='number';costInput.className='hpp-m-cost';costInput.min='0';costInput.step='1';costInput.placeholder='3000';costInput.value=v.unitCost==null?'':String(v.unitCost);cost.appendChild(costInput);
+     const del=document.createElement('button');del.type='button';del.className='small danger';del.textContent='×';del.title='Hapus bahan';del.addEventListener('click',()=>{row.remove();calc()});
+     [nameInput,qtyInput,costInput].forEach(el=>el.addEventListener('input',calc));
+     row.append(name,qty,cost,del);materialsHost.appendChild(row);
+   }
+   function calc(){
+     const materials=[...materialsHost.querySelectorAll('.hpp-material-row')].map(row=>({name:row.querySelector('.hpp-m-name').value.trim(),qty:Math.max(0,Number(row.querySelector('.hpp-m-qty').value)||0),unitCost:Math.max(0,Number(row.querySelector('.hpp-m-cost').value)||0)})).filter(x=>x.name);
+     const materialCost=materials.reduce((n,m)=>n+m.qty*m.unitCost,0),labor=Number(document.getElementById('hppLabor').value)||0,overhead=Number(document.getElementById('hppOverhead').value)||0,qty=Number(document.getElementById('hppQty').value)||0,total=materialCost+labor+overhead,unit=qty>0?total/qty:0;
+     document.getElementById('hppMaterialTotal').textContent=money(materialCost);document.getElementById('hppTotal').textContent=money(total);document.getElementById('hppUnit').textContent=money(unit);
+     return {materials,materialCost,labor,overhead,qty,total,unit};
+   }
+   document.getElementById('hppAddMaterial').addEventListener('click',()=>{addMaterial();calc()});
+   [document.getElementById('hppQty'),document.getElementById('hppLabor'),document.getElementById('hppOverhead')].forEach(el=>el.addEventListener('input',calc));
+   document.getElementById('hppForm').addEventListener('submit',e=>{
+     e.preventDefault();const v=calc(),name=document.getElementById('hppName').value.trim();
+     if(!name||v.qty<=0)return alert('Isi nama produk dan jumlah unit yang valid.');
+     if(!Array.isArray(state.hppRecords))state.hppRecords=[];
+     state.hppRecords.push({id:uid(),businessId:id,productName:name,quantity:v.qty,materials:v.materials,materialCost:v.materialCost,laborCost:v.labor,overheadCost:v.overhead,totalCost:v.total,unitCost:v.unit,date:new Date().toISOString().slice(0,10)});
+     save();showToast('HPP tersimpan.');renderHppWithMaterials(id);
+   });
+   addMaterial();calc();
+   const history=(state.hppRecords||[]).filter(x=>x.businessId===id).slice().reverse();
+   document.getElementById('hppHistory').innerHTML=history.map(x=>{
+     const materialDesc=(x.materials||[]).map(m=>esc(m.name)+' ('+m.qty+' × '+money(m.unitCost)+')').join(', ');
+     return '<div class="hpp-history-row"><div><strong>'+esc(x.productName)+'</strong><small>'+esc(x.date)+' · '+x.quantity+' unit'+(materialDesc?' · '+materialDesc:'')+'</small></div><strong>'+money(x.unitCost)+'/unit</strong></div>';
+   }).join('')||'<div class="desc">Belum ada perhitungan HPP untuk usaha ini.</div>';
+ }
+ // Patch top-level back and cancel controls so they are reliable in WebView and Android navigation.
+})();
+</script>
+"""
+if not s.includes("const v7 = r") ... hmm script uses source.
+if (!s.includes("s.replace('</body>',v7+'</body>',1)")) {}
+s=s.replace("</body>",v7+"</body>",1)
 p.write_text(s)
+print("Feature upgrade applied",len(s))
+
 print("Feature upgrade applied",len(s))
