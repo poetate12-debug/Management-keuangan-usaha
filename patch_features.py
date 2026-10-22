@@ -118,10 +118,15 @@ document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(se
    const b=document.createElement('button');b.type='button';b.id='settingsShortcut';b.className='small settings-shortcut';b.textContent='⚙ Pengaturan';b.setAttribute('aria-label','Buka pengaturan');b.addEventListener('click',()=>{if(typeof go==='function')go('settings')});top.appendChild(b);
  }
  const all=[...document.querySelectorAll('button,a,[role="button"]')];
- const exportBtn=all.find(el=>/\b(ekspor|export)\s+excel\b/i.test((el.innerText||el.textContent||'').replace(/[⬇⬆⇩↓↑📊]/g,' ').trim()));
+ let exportBtn=all.find(el=>/\b(ekspor|export)\s+excel\b/i.test((el.innerText||el.textContent||'').replace(/[⬇⬆⇩↓↑📊]/g,' ').trim()));
  const settingsActions=document.querySelector('#page-settings .backup-actions');
+ if(!exportBtn&&settingsActions){
+   exportBtn=document.createElement('button');exportBtn.type='button';exportBtn.className='primary excel-export-settings';exportBtn.textContent='📊 Ekspor Excel';
+   settingsActions.insertBefore(exportBtn,settingsActions.firstChild);
+ }
  if(exportBtn&&settingsActions){
-   exportBtn.removeAttribute('id');exportBtn.textContent='📊 Ekspor Excel';exportBtn.setAttribute('type','button');exportBtn.classList.add('excel-export-settings');settingsActions.insertBefore(exportBtn,settingsActions.firstChild);
+   exportBtn.removeAttribute('id');exportBtn.textContent='📊 Ekspor Excel';exportBtn.setAttribute('type','button');exportBtn.classList.add('excel-export-settings');exportBtn.onclick=()=>exportExcel();
+   if(exportBtn.parentElement!==settingsActions)settingsActions.insertBefore(exportBtn,settingsActions.firstChild);
  }
  document.querySelectorAll('button,a,[role="button"]').forEach(el=>{
    const label=(el.innerText||el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -130,6 +135,33 @@ document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(se
  });
  document.querySelectorAll('.top .actions').forEach(box=>{if(!box.querySelector('button,a,[role="button"]'))box.remove()});
 })();
+function exportExcel(){
+ try{
+  const text=v=>String(v===null||v===undefined?'':v);
+  const xml=v=>text(v).replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  const cell=(v,numeric=false)=>'<Cell><Data ss:Type="'+(numeric&&Number.isFinite(Number(v))?'Number':'String')+'">'+xml(v)+'</Data></Cell>';
+  const sheet=(name,headers,rows,numericCols=[])=>'<Worksheet ss:Name="'+xml(name).slice(0,31)+'"><Table>'+[headers,...rows].map((row,ri)=>'<Row>'+row.map((v,ci)=>cell(v,ri>0&&numericCols.includes(ci))).join('')+'</Row>').join('')+'</Table></Worksheet>';
+  const businesses=state.businesses||[],accounts=state.accounts||[],categories=state.categories||[],products=state.products||[],transactions=state.transactions||[],hpp=state.hppRecords||[];
+  const txRows=transactions.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).map(t=>[
+   t.date||'',t.type==='income'?'Pemasukan':t.type==='expense'?'Pengeluaran':'Transfer',
+   t.businessId?businessName(t.businessId):'',t.categoryId?categoryName(t.categoryId):'',
+   t.accountId?accountName(t.accountId):'',t.toAccountId?accountName(t.toAccountId):'',
+   Number(t.amount)||0,t.note||'',(t.items||[]).map(i=>(i.productName||(products.find(p=>p.id===i.productId)||{}).name||'Produk')+' x '+(Number(i.qty)||0)+' @ '+(Number(i.price)||0)).join('; ')
+  ]);
+  const sheets=[
+   sheet('Transaksi',['Tanggal','Jenis','Usaha','Kategori','Akun asal','Akun tujuan','Nominal (Rp)','Catatan','Rincian produk'],txRows,[6]),
+   sheet('Usaha',['ID usaha','Nama usaha','Jenis usaha','Status'],businesses.map(b=>[b.id||'',b.name||'',b.type||'',b.archived?'Diarsipkan':'Aktif'])),
+   sheet('Akun',['Nama akun','Jenis akun','Saldo awal (Rp)'],accounts.map(a=>[a.name||'',a.type||'',Number(a.opening)||0]),[2]),
+   sheet('Kategori',['Usaha','Jenis','Nama kategori'],categories.map(c=>[c.businessId?businessName(c.businessId):'Umum',c.type==='income'?'Pemasukan':'Pengeluaran',c.name||''])),
+   sheet('Produk',['Usaha','Nama produk','Harga jual (Rp)','Satuan'],products.map(p=>[businessName(p.businessId),p.name||'',Number(p.price)||0,p.unit||'pcs']),[2]),
+   sheet('HPP',['Tanggal','Usaha','Nama produk','Jumlah unit','Biaya bahan baku (Rp)','Tenaga kerja (Rp)','Overhead (Rp)','Total biaya (Rp)','HPP per unit (Rp)'],hpp.map(h=>[h.date||'',businessName(h.businessId),h.productName||'',Number(h.quantity)||0,Number(h.materialCost)||0,Number(h.laborCost)||0,Number(h.overheadCost)||0,Number(h.totalCost)||0,Number(h.unitCost)||0]),[3,4,5,6,7,8])
+  ];
+  const workbook='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'+sheets.join('')+'</Workbook>';
+  const blob=new Blob(['\\uFEFF',workbook],{type:'application/vnd.ms-excel;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='RuangUsaha-Laporan-'+new Date().toISOString().slice(0,10)+'.xls';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
+  showToast('File Excel berisi transaksi, usaha, akun, kategori, produk, dan HPP disiapkan.');
+ }catch(err){alert('Ekspor Excel gagal: '+(err&&err.message?err.message:String(err)))}
+}
 function exportBackup(){try{const payload={app:'RuangUsaha',formatVersion:1,exportedAt:new Date().toISOString(),data:state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='RuangUsaha-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);showToast('Cadangan disiapkan. Pastikan file tersimpan di perangkat.')}catch(err){alert('Ekspor gagal: '+err.message)}}
 function importBackupFile(event){const file=event.target.files&&event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(String(reader.result||'')),d=parsed.data||parsed;if(!d||!Array.isArray(d.transactions)||!Array.isArray(d.accounts)||!Array.isArray(d.categories))throw new Error('Format file cadangan tidak dikenali');if(!confirm('Impor akan mengganti data saat ini. Pastikan Anda sudah mengekspor cadangan data terbaru. Lanjutkan?'))return;state={...state,...d,accounts:d.accounts,transactions:d.transactions,categories:d.categories,businesses:Array.isArray(d.businesses)?d.businesses:[],products:Array.isArray(d.products)?d.products:[]};save();if(typeof render==='function')render();showToast('Data berhasil dipulihkan.')}catch(err){alert('File cadangan tidak valid atau rusak: '+err.message)}finally{event.target.value=''}};reader.onerror=()=>alert('File tidak dapat dibaca.');reader.readAsText(file)}
 """
@@ -1045,7 +1077,21 @@ v8 = r"""
   function pushEntry(entry){ruStack.push(entry);const seq=++ruSeq;try{history.pushState({ruUnified:true,seq},'','#ru-state-'+seq)}catch(e){}}
   function callLegacy(fn){window.ruSuppressLegacyHistory=true;window.ruSuppressBusinessHistory=true;try{return typeof fn==='function'?fn():undefined}finally{window.ruSuppressLegacyHistory=false;window.ruSuppressBusinessHistory=false}}
   function rawGo(page){return callLegacy(()=>legacyGo&&legacyGo(page))}
-  function rawOpenBusiness(id){return callLegacy(()=>legacyOpenBusiness&&legacyOpenBusiness(id))}
+  function ensureModernBusinessDetail(id){
+    const host=document.getElementById('businessDetailView'),b=business(id);
+    if(!host||!b||host.querySelector('.business-menu-grid'))return;
+    host.innerHTML='<div class="business-detail-top"><button type="button" class="small business-detail-back" onclick="closeBusinessDetail()">← Kembali</button><div class="business-detail-logo" style="overflow:hidden">'+photoIcon(b)+'</div><div style="min-width:0"><h1 class="business-detail-title">'+esc(b.name)+'</h1><div class="business-detail-kind">'+esc(b.type||'Usaha')+'</div></div></div><div class="desc">Ringkasan kinerja usaha untuk bulan berjalan.</div><div class="business-stat-grid" id="businessCustomStats"></div><div class="business-detail-actions"><button type="button" class="primary" id="businessDetailIncome">＋ Pemasukan</button><button type="button" id="businessDetailExpense">－ Pengeluaran</button></div><h2 class="business-section-heading">Pengaturan dan alat usaha</h2><div class="business-menu-grid"><button type="button" class="business-menu-card" onclick="openBusinessSubPage(\'categories\')"><span class="menu-symbol">▤</span><strong>Kategori usaha</strong></button><button type="button" class="business-menu-card" onclick="openBusinessSubPage(\'products\')"><span class="menu-symbol">▣</span><strong>Produk usaha</strong></button><button type="button" class="business-menu-card" onclick="openBusinessSubPage(\'hpp\')"><span class="menu-symbol">∑</span><strong>Perhitungan HPP</strong></button></div><h2 class="business-section-heading">Transaksi terbaru</h2><div id="businessCustomRecent"></div>';
+    const inc=document.getElementById('businessDetailIncome'),out=document.getElementById('businessDetailExpense');
+    if(inc)inc.onclick=()=>window.openTransactionForBusiness('income',id);
+    if(out)out.onclick=()=>window.openTransactionForBusiness('expense',id);
+    refreshPhoto(id);
+    const month=typeof monthNow==='function'?monthNow():new Date().toISOString().slice(0,7),txs=(state.transactions||[]).filter(t=>t.businessId===id),mt=txs.filter(t=>String(t.date||'').startsWith(month)),st=typeof totals==='function'?totals(mt):{inc:0,out:0,net:0};
+    const stats=document.getElementById('businessCustomStats');
+    if(stats)stats.innerHTML='<div class="business-stat"><small>Pemasukan bulan ini</small><strong>'+money(st.inc)+'</strong></div><div class="business-stat"><small>Pengeluaran bulan ini</small><strong>'+money(st.out)+'</strong></div><div class="business-stat"><small>Arus kas bersih</small><strong>'+money(st.net)+'</strong></div><div class="business-stat"><small>Total transaksi</small><strong>'+txs.length+'</strong></div>';
+    const recent=document.getElementById('businessCustomRecent');
+    if(recent)recent.innerHTML=txs.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,6).map(t=>'<div class="business-detail-transaction"><div><strong>'+esc(t.note||(t.type==='income'?'Pemasukan':t.type==='expense'?'Pengeluaran':'Transfer'))+'</strong><small>'+esc(t.date||'')+' · '+esc(t.type==='transfer'?'Transfer':(typeof categoryName==='function'?categoryName(t.categoryId):''))+'</small></div><strong>'+(t.type==='expense'?'−':t.type==='income'?'+':'')+money(t.amount)+'</strong></div>').join('')||'<div class="desc">Belum ada transaksi untuk usaha ini.</div>';
+  }
+  function rawOpenBusiness(id){callLegacy(()=>legacyOpenBusiness&&legacyOpenBusiness(id));ensureModernBusinessDetail(id)}
   function rawCloseBusiness(){return callLegacy(()=>legacyCloseBusiness&&legacyCloseBusiness())}
   function rawOpenSub(kind){return callLegacy(()=>legacyOpenSub&&legacyOpenSub(kind))}
   function business(id){return (state.businesses||[]).find(b=>b.id===id)}
@@ -1082,7 +1128,7 @@ v8 = r"""
     }
     pushEntry({kind:'business',id,page:'businesses'});
     ruActiveBusiness=id;ruActiveSub=null;window.ruCurrentBusinessId=id;
-    rawOpenBusiness(id);refreshPhoto(id);window.scrollTo(0,0);
+    rawOpenBusiness(id);ensureModernBusinessDetail(id);refreshPhoto(id);window.scrollTo(0,0);
   };
   window.closeBusinessDetail=function(){
     const top=currentEntry();
