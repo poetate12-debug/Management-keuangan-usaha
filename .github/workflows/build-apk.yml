@@ -34,6 +34,54 @@ jobs:
           extra = marker + "\n        settings.setUseWideViewPort(true);\n        settings.setLoadWithOverviewMode(false);\n        settings.setTextZoom(100);\n        settings.setSupportZoom(false);\n        settings.setBuiltInZoomControls(false);\n        settings.setDisplayZoomControls(false);"
           if "settings.setUseWideViewPort(true);" not in code:
               code = code.replace(marker, extra, 1)
+          # Add a native bridge so JSON and Excel downloads work in Android WebView.
+          if "class RuangUsahaDownloadBridge" not in code:
+              import re
+              match = re.search(r'WebView\\s+(\\w+)\\s*=', code)
+              if not match:
+                  raise SystemExit("Cannot locate Android WebView variable for download bridge")
+              webview = match.group(1)
+              inject = '        ' + webview + '.addJavascriptInterface(new RuangUsahaDownloadBridge(this), "AndroidDownloads");'
+              dom_marker = "settings.setDomStorageEnabled(true);"
+              if '"AndroidDownloads"' not in code:
+                  code = code.replace(dom_marker, dom_marker + "\\n" + inject, 1)
+              bridge = r'''
+              private static class RuangUsahaDownloadBridge {
+                  private final android.app.Activity activity;
+                  RuangUsahaDownloadBridge(android.app.Activity activity) { this.activity = activity; }
+                  @android.webkit.JavascriptInterface
+                  public void saveFile(String filename, String mimeType, String base64) {
+                      activity.runOnUiThread(() -> {
+                          android.net.Uri uri = null;
+                          try {
+                              String safeName = (filename == null ? "KasUsaha-export" : filename).replaceAll("[^A-Za-z0-9._-]", "_");
+                              android.content.ContentValues values = new android.content.ContentValues();
+                              values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, safeName);
+                              values.put(android.provider.MediaStore.Downloads.MIME_TYPE, mimeType == null ? "application/octet-stream" : mimeType);
+                              values.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+                              values.put(android.provider.MediaStore.Downloads.IS_PENDING, 1);
+                              uri = activity.getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                              if (uri == null) throw new java.io.IOException("Tidak dapat membuat file di folder Unduhan");
+                              byte[] data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+                              try (java.io.OutputStream out = activity.getContentResolver().openOutputStream(uri)) {
+                                  if (out == null) throw new java.io.IOException("Tidak dapat membuka file hasil ekspor");
+                                  out.write(data);
+                              }
+                              android.content.ContentValues done = new android.content.ContentValues();
+                              done.put(android.provider.MediaStore.Downloads.IS_PENDING, 0);
+                              activity.getContentResolver().update(uri, done, null, null);
+                              android.widget.Toast.makeText(activity, "File tersimpan di folder Unduhan", android.widget.Toast.LENGTH_LONG).show();
+                          } catch (Exception e) {
+                              if (uri != null) activity.getContentResolver().delete(uri, null, null);
+                              android.widget.Toast.makeText(activity, "Ekspor gagal: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+                          }
+                      });
+                  }
+              }
+              '''
+              pos = code.rfind("}")
+              if pos < 0: raise SystemExit("Cannot insert download bridge into MainActivity")
+              code = code[:pos] + bridge + "\\n" + code[pos:]
           java.write_text(code)
           PY
           python3 patch_mobile.py
