@@ -5,6 +5,8 @@
 ## 1. Tautan penting
 
 - **Repositori sumber:** https://github.com/poetate12-debug/Management-keuangan-usaha
+- **Unduh APK langsung terbaru:** https://github.com/poetate12-debug/Management-keuangan-usaha/releases/download/latest/app-debug.apk
+- **Daftar rilis:** https://github.com/poetate12-debug/Management-keuangan-usaha/releases/tag/latest
 - **Build APK terbaru yang berhasil:** https://github.com/poetate12-debug/Management-keuangan-usaha/actions/runs/39661361566
 - **Unduh paket APK (ZIP artifact):** https://api.github.com/repos/poetate12-debug/Management-keuangan-usaha/actions/artifacts/12372784335/zip
 - **Commit build terakhir yang diketahui berhasil:** `4acc6bffd530734c029730686f41a403154fec49`
@@ -134,3 +136,30 @@ Isi bagian ini setiap kali ada pembaruan:
 
 ---
 Dokumen ini mencatat kondisi build yang diketahui pada 22 Oktober 2026. Periksa status Actions terbaru sebelum menganggap build tersebut sebagai versi paling baru.
+
+
+## 11. Alur aplikasi terbaru: usaha, kategori, produk, dan HPP
+
+**Catat transaksi**
+1. Tekan tombol Catat.
+2. Pilih jenis transaksi: Pemasukan, Pengeluaran, atau Transfer antar dompet.
+3. Untuk pemasukan/pengeluaran, pilih usaha dari kartu bergambar dua kolom.
+4. Formulir menampilkan kartu usaha terpilih di bagian atas dan kartu jenis transaksi berwarna hijau (pemasukan) atau merah (pengeluaran). Jenis dan usaha dipilih dari alur awal; ubah pilihan dengan menutup formulir dan memulai pencatatan kembali.
+5. Untuk transfer, pilih dompet asal dan dompet tujuan; transfer tidak terikat ke usaha.
+
+**Detail usaha**
+- Buka tab Usaha dan ketuk Detail pada usaha untuk membuka halaman khusus usaha.
+- Halaman detail menampilkan ringkasan statistik dan transaksi terbaru.
+- Pilih Kategori usaha atau Produk usaha untuk membuka halaman khusus masing-masing. Data kategori dan produk ditampilkan menurut usaha terpilih.
+- Kembali ke detail usaha untuk membuka menu Perhitungan HPP.
+
+**Perhitungan HPP**
+- HPP (Harga Pokok Produksi) dihitung dengan rumus: (total bahan baku + total tenaga kerja + overhead produksi) ÷ jumlah unit yang dihasilkan.
+- Isi nama produk, jumlah unit, biaya bahan baku, biaya tenaga kerja, dan overhead.
+- Hasil total biaya dan HPP per unit dihitung otomatis. Tekan Simpan perhitungan untuk mencatat hasil dalam riwayat HPP usaha tersebut.
+- Perhitungan HPP adalah modul biaya sederhana. Angka tidak otomatis mengubah harga produk, stok persediaan, atau transaksi penjualan.
+
+**Perlindungan data**
+- Data HPP disimpan bersama data aplikasi. Ekspor cadangan JSON dari Pengaturan secara berkala, terutama sebelum update APK.
+- Memperbarui aplikasi dengan paket/tanda tangan yang sama biasanya mempertahankan data lokal. Menghapus aplikasi, menghapus data aplikasi, atau reset perangkat dapat menghapus data.
+- Setelah setiap build baru, uji satu transaksi pemasukan, satu pengeluaran, satu transfer, pengeditan kategori per usaha, produk pada dua usaha berbeda, dan satu kalkulasi HPP.
