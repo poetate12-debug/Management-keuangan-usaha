@@ -500,6 +500,17 @@ v6 = r"""
  if(typeof origTyped==='function')window.startTypedTransaction=function(type){origTyped(type);setTimeout(drawTxContext,80)};
  const origChoose=window.chooseBusinessTyped;
  if(typeof origChoose==='function')window.chooseBusinessTyped=function(id){origChoose(id);setTimeout(drawTxContext,80)};
+ window.openTransactionForBusiness=function(type,id){
+   if(typeof window.openTransactionForm!=='function')return;
+   window.openTransactionForm('',id);
+   const typeEl=document.getElementById('fType'),bizEl=document.getElementById('fBusiness');
+   if(typeEl)typeEl.value=type;
+   if(bizEl)bizEl.value=id||'';
+   if(typeof window.updateTxForm==='function')window.updateTxForm();
+   const title=document.getElementById('txModalTitle'),b=(state.businesses||[]).find(x=>x.id===id);
+   if(title)title.textContent=(type==='income'?'Catat pemasukan — ':'Catat pengeluaran — ')+(b?b.name:'Usaha');
+   drawTxContext();
+ };
  document.getElementById('txModal')&&new MutationObserver(()=>setTimeout(drawTxContext,0)).observe(document.getElementById('txModal'),{attributes:true,attributeFilter:['style','class']});
  document.getElementById('fType')&&document.getElementById('fType').addEventListener('change',drawTxContext);
  document.getElementById('fBusiness')&&document.getElementById('fBusiness').addEventListener('change',drawTxContext);
