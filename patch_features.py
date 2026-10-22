@@ -16,7 +16,7 @@ s=s.replace("</style>", """
 @media(max-width:700px){.picker-grid{grid-template-columns:1fr}.sale-row{grid-template-columns:minmax(0,1fr) 54px 76px 25px;gap:4px;padding:6px}.modal-backdrop{padding:0;align-items:flex-end}.modal{width:100%;max-height:94dvh;border-radius:20px 20px 0 0;padding:17px}.modal-head{position:sticky;top:-17px;background:white;padding:5px 0 12px;z-index:1}.form-actions{position:sticky;bottom:-17px;background:#fff;padding:12px 0 max(8px,env(safe-area-inset-bottom));z-index:1}}
 </style>""",1)
 anchor='<div class="account-list" id="businessesList" style="margin-top:14px"></div></div>'
-rep='<div class="account-list" id="businessesList" style="margin-top:14px"></div><div class="panel-head" style="margin-top:22px"><div><h2>Produk tiap usaha</h2><div class="desc">Daftarkan foto, alarm, barang, atau jasa beserta harga jual.</div></div><button class="primary" onclick="openProduct()">＋ Tambah produk</button></div><div class="filters"><select id="productBusinessFilter"><option value="">Semua usaha</option></select></div><div class="account-list" id="productsList"></div></div>'
+rep='<div class="account-list" id="businessesList" style="margin-top:14px"></div><div id="globalProductsBlock" style="display:none"><div class="panel-head" style="margin-top:22px"><div><h2>Produk tiap usaha</h2><div class="desc">Daftarkan foto, alarm, barang, atau jasa beserta harga jual.</div></div><button class="primary" onclick="openProduct()">＋ Tambah produk</button></div><div class="filters"><select id="productBusinessFilter"><option value="">Semua usaha</option></select></div><div class="account-list" id="productsList"></div></div></div>'
 if anchor not in s: raise SystemExit("business list anchor missing")
 s=s.replace(anchor,rep,1)
 picker='<div class="modal-backdrop" id="businessPickerModal"><div class="modal"><div class="modal-head"><div><h2>Pilih usaha</h2><div class="desc">Pilih usaha sebelum mengisi data transaksi.</div></div><button onclick="closeModal(\'businessPickerModal\')">✕</button></div><div id="businessPickerCards" class="picker-grid"></div><button style="width:100%;margin-top:12px" onclick="chooseBusiness(\'__general__\')">Operasional umum / belum dipisah</button></div></div>'
@@ -247,7 +247,182 @@ v4 = r"""
 </script>
 """
 if "</body>" not in s: raise SystemExit("body closing tag not found")
-s=s.replace("</body>",v4+"</body>",1)
 
+s=s.replace("</body>",v4+"</body>",1)
+# Visual layout and a separate details view for each business.
+v5 = r"""
+<style>
+/* Business selector: icon above label; compact visual choices */
+#txTypePicker .modal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:18px!important}
+#txTypePicker .modal-head{grid-column:1/-1}
+#txTypePicker .type-choice{width:100%;min-width:0;min-height:104px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;margin:0;padding:12px 4px;border-radius:15px;text-align:center}
+#txTypePicker .type-icon{width:43px;height:43px;font-size:23px}
+#txTypePicker .type-choice>span:nth-child(2){display:block;text-align:center}
+#txTypePicker .type-choice strong{font-size:12px;line-height:1.2;display:block}
+#txTypePicker .type-choice small{display:none!important}
+#businessPickerCards.picker-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}
+#businessPickerCards .picker-card{width:100%;min-height:104px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;text-align:center;padding:12px 6px}
+#businessPickerCards .picker-icon{width:46px;height:46px;font-size:25px;display:grid;place-items:center}
+#businessPickerCards .picker-card strong{font-size:13px;line-height:1.2}
+#businessPickerCards .picker-card small,#businessPickerCards .picker-card>span:last-child{display:none!important}
+#businessCategorySettings{display:none}
+#businessDetailView{padding-bottom:24px}
+.business-detail-top{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.business-detail-back{flex:0 0 auto}
+.business-detail-logo{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:#e5efff;color:#4655c9;font-size:28px}
+.business-detail-title{font-size:23px;font-weight:800;line-height:1.15;margin:0}
+.business-detail-kind{font-size:12px;color:var(--muted);margin-top:5px}
+.business-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0 18px}
+.business-stat{padding:14px;background:#fff;border:1px solid var(--line);border-radius:15px}
+.business-stat small{display:block;font-size:11px;color:var(--muted)}
+.business-stat strong{display:block;font-size:17px;margin-top:7px;overflow-wrap:anywhere}
+.business-detail-actions{display:flex;gap:8px;margin:12px 0 18px}
+.business-detail-actions button{flex:1;min-height:43px}
+.business-section-heading{font-size:17px;font-weight:800;margin:20px 0 10px}
+#businessDetailRecent{display:grid;gap:8px}
+.business-detail-transaction{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;padding:11px 12px;border:1px solid var(--line);border-radius:12px}
+.business-detail-transaction small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+#businessDetailSettings .biz-settings-panel{margin:0 0 16px}
+#businessDetailSettings #bizSettingsBusiness{pointer-events:none}
+@media(max-width:700px){
+ #txTypePicker .modal{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:16px!important}
+ #txTypePicker .type-choice{min-height:100px;padding:10px 3px}
+ #txTypePicker .type-icon{width:39px;height:39px;font-size:21px}
+ #businessPickerCards.picker-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ #businessPickerCards .picker-card{min-height:100px}
+ .business-detail-title{font-size:20px}
+}
+</style>
+<div id="businessSettingsParking" style="display:none!important"></div>
+<script>
+(function(){
+ const section=document.getElementById('page-businesses');
+ if(!section)return;
+ const detail=document.createElement('div');detail.id='businessDetailView';detail.style.display='none';section.appendChild(detail);
+ const parking=document.getElementById('businessSettingsParking');
+ const stateOriginalDisplay=new WeakMap();
+ let selectedBusinessId=null;
+ function norm(v){return String(v||'').trim().toLowerCase()}
+ function logoForBusiness(b){
+   const n=norm(b&&b.name);
+   if(/studio|foto|fotografi|cetak/.test(n))return '📷';
+   if(/wifi|internet|net/.test(n))return '📡';
+   if(/cctv|alarm|security|sentinel|keamanan/.test(n))return '🛡️';
+   if(/delivery|gelis|antar|kurir/.test(n))return '🛵';
+   return '🏪';
+ }
+ function hideBusinessList(){
+   [...section.children].forEach(el=>{
+     if(el===detail)return;
+     if(!el.hasAttribute('data-ru-old-display'))el.setAttribute('data-ru-old-display',el.style.display||'');
+     el.style.display='none';
+   });
+   detail.style.display='block';
+ }
+ function showBusinessList(){
+   [...section.children].forEach(el=>{
+     if(el===detail)return;
+     if(el.hasAttribute('data-ru-old-display')){
+       el.style.display=el.getAttribute('data-ru-old-display');
+       el.removeAttribute('data-ru-old-display');
+     }
+   });
+   detail.style.display='none';
+   selectedBusinessId=null;
+   const panel=document.getElementById('businessCategorySettings');
+   if(panel){parking.appendChild(panel);panel.style.display='none'}
+ }
+ function detailStats(id){
+   const b=(state.businesses||[]).find(x=>x.id===id);if(!b)return;
+   const month=typeof monthNow==='function'?monthNow():new Date().toISOString().slice(0,7);
+   const txs=(state.transactions||[]).filter(t=>t.businessId===id);
+   const monthTx=txs.filter(t=>String(t.date||'').startsWith(month));
+   const sm=typeof totals==='function'?totals(monthTx):{inc:0,out:0,net:0};
+   const balance=sm.net;
+   const stats=document.getElementById('businessDetailStats');
+   if(stats)stats.innerHTML='<div class="business-stat"><small>Pemasukan bulan ini</small><strong style="color:var(--green)">'+money(sm.inc)+'</strong></div><div class="business-stat"><small>Pengeluaran bulan ini</small><strong style="color:var(--red)">'+money(sm.out)+'</strong></div><div class="business-stat"><small>Arus kas bersih</small><strong style="color:var(--blue)">'+money(balance)+'</strong></div><div class="business-stat"><small>Jumlah transaksi</small><strong>'+txs.length+'</strong></div>';
+   const recent=document.getElementById('businessDetailRecent');
+   if(recent){
+     const items=txs.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,6);
+     recent.innerHTML=items.map(t=>'<div class="business-detail-transaction"><div><strong>'+esc(t.note||(t.type==='income'?'Pemasukan':t.type==='expense'?'Pengeluaran':'Transfer'))+'</strong><small>'+esc(t.date||'')+' · '+esc(t.type==='transfer'?'Transfer':(typeof categoryName==='function'?categoryName(t.categoryId):''))+'</small></div><strong style="white-space:nowrap">'+(t.type==='expense'?'−':t.type==='income'?'+':'')+money(t.amount)+'</strong></div>').join('')||'<div class="desc">Belum ada transaksi untuk usaha ini.</div>';
+   }
+ }
+ function mountSettings(){
+   const panel=document.getElementById('businessCategorySettings'),mount=document.getElementById('businessDetailSettings');
+   if(!panel)return;
+   if(selectedBusinessId){
+     const chooser=document.getElementById('bizSettingsBusiness');if(chooser)chooser.value=selectedBusinessId;
+     panel.style.display='block';
+     if(mount)mount.appendChild(panel);
+   }else{
+     parking.appendChild(panel);panel.style.display='none';
+   }
+ }
+ window.openBusinessDetail=function(id){
+   const b=(state.businesses||[]).find(x=>x.id===id);if(!b)return;
+   selectedBusinessId=id;
+   detail.innerHTML='<div class="business-detail-top"><button type="button" class="small business-detail-back" onclick="closeBusinessDetail()">← Kembali</button><div class="business-detail-logo">'+logoForBusiness(b)+'</div><div style="min-width:0"><h1 class="business-detail-title">'+esc(b.name)+'</h1><div class="business-detail-kind">'+esc(b.type||'Usaha')+'</div></div></div><div class="desc">Ringkasan kinerja usaha untuk bulan berjalan.</div><div class="business-stat-grid" id="businessDetailStats"></div><div class="business-detail-actions"><button type="button" class="primary" id="businessDetailIncome">＋ Pemasukan</button><button type="button" id="businessDetailExpense">－ Pengeluaran</button></div><h2 class="business-section-heading">Transaksi terbaru</h2><div id="businessDetailRecent"></div><h2 class="business-section-heading">Pengaturan usaha</h2><div id="businessDetailSettings"></div>';
+   hideBusinessList();
+   document.getElementById('businessDetailIncome').onclick=()=>openTransactionForBusiness('income',id);
+   document.getElementById('businessDetailExpense').onclick=()=>openTransactionForBusiness('expense',id);
+   if(typeof renderBusinessCategorySettings==='function')renderBusinessCategorySettings();
+   mountSettings();detailStats(id);
+   window.scrollTo(0,0);
+ };
+ window.closeBusinessDetail=function(){showBusinessList();if(typeof renderBusinesses==='function')renderBusinesses();window.scrollTo(0,0)};
+ const oldPicker=window.renderBusinessPicker;
+ window.renderBusinessPicker=function(){
+   if(typeof oldPicker==='function')oldPicker();
+   const host=document.getElementById('businessPickerCards');if(!host)return;
+   [...host.querySelectorAll('button.picker-card')].forEach(btn=>{
+     const strong=btn.querySelector('strong'),name=strong?strong.textContent:'';
+     const b=(state.businesses||[]).find(x=>norm(x.name)===norm(name));
+     if(!b)return;
+     btn.innerHTML='<span class="picker-icon">'+logoForBusiness(b)+'</span><strong>'+esc(b.name)+'</strong>';
+   });
+   const general=host.parentElement.querySelector('button[onclick*="__general__"]');
+   if(general){host.appendChild(general);general.classList.add('picker-card');general.innerHTML='<span class="picker-icon">🏪</span><strong>Umum</strong>'}
+ };
+ function decorateBusinesses(){
+   const list=document.getElementById('businessesList');if(!list)return;
+   list.querySelectorAll('.account,.business-card,.biz-card').forEach(row=>{
+     const strong=row.querySelector('strong');if(!strong)return;
+     const b=(state.businesses||[]).find(x=>norm(x.name)===norm(strong.textContent));if(!b)return;
+     if(!row.querySelector('.business-detail-trigger')){
+       const dest=row.querySelector(':scope > div:last-child')||row;
+       const button=document.createElement('button');button.type='button';button.className='small business-detail-trigger';button.textContent='Detail ›';
+       button.addEventListener('click',e=>{e.stopPropagation();openBusinessDetail(b.id)});
+       dest.appendChild(button);
+     }
+   });
+ }
+ const oldSettings=window.renderBusinessCategorySettings;
+ window.renderBusinessCategorySettings=function(){
+   if(typeof oldSettings==='function')oldSettings();
+   mountSettings();
+   if(selectedBusinessId)detailStats(selectedBusinessId);
+ };
+ const oldRenderBusinesses=window.renderBusinesses;
+ if(typeof oldRenderBusinesses==='function')window.renderBusinesses=function(){
+   oldRenderBusinesses();decorateBusinesses();mountSettings();
+   if(selectedBusinessId)detailStats(selectedBusinessId);
+ };
+ section.addEventListener('click',e=>{
+   if(selectedBusinessId||e.target.closest('button,a,input,select,textarea'))return;
+   const row=e.target.closest('#businessesList .account,#businessesList .business-card,#businessesList .biz-card');
+   if(!row)return;
+   const strong=row.querySelector('strong');if(!strong)return;
+   const b=(state.businesses||[]).find(x=>norm(x.name)===norm(strong.textContent));if(b)openBusinessDetail(b.id);
+ });
+ const categoryChooser=document.getElementById('bizSettingsBusiness');
+ if(categoryChooser)categoryChooser.addEventListener('change',()=>{
+   if(selectedBusinessId)categoryChooser.value=selectedBusinessId;
+ });
+ setTimeout(()=>{const panel=document.getElementById('businessCategorySettings');if(panel&&!selectedBusinessId){parking.appendChild(panel);panel.style.display='none'}decorateBusinesses()},180);
+})();
+</script>
+"""
+if "</body>" not in s: raise SystemExit("body closing tag not found before v5")
+s=s.replace("</body>",v5+"</body>",1)
 p.write_text(s)
 print("Feature upgrade applied",len(s))
