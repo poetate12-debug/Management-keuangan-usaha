@@ -83,6 +83,12 @@ extra_css = """
  #mobileBottomNav button[data-page="reports"]{grid-column:4;grid-row:1}
  #mobileBottomNav button[data-page="transactions"]{grid-column:5;grid-row:1}
  #mobileBottomNav button[data-page="dashboard"]{grid-column:1;grid-row:1}
+ #mobileBottomNav button[data-page="settings"]{display:none!important}
+ /* Modal is layered above navigation on Android; only its form scrolls. */
+ .modal-backdrop{position:fixed!important;inset:0!important;z-index:1000!important;display:flex;align-items:flex-end;justify-content:center;padding:0!important;overflow:hidden}
+ .modal{position:relative;z-index:1001;width:100%!important;max-height:calc(100dvh - env(safe-area-inset-top))!important;margin:0!important;border-radius:22px 22px 0 0!important;overflow:hidden!important;display:flex;flex-direction:column}
+ .modal form{display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:0!important}
+ .modal .form-actions{position:sticky!important;bottom:0!important;z-index:4!important;flex-shrink:0;background:#fff!important;padding:12px 0 max(14px,env(safe-area-inset-bottom))!important;box-shadow:0 -8px 14px #fff}
 }
 .backup-panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
 .backup-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.backup-actions button{flex:1;min-width:130px}
@@ -94,7 +100,7 @@ if 'id="page-settings"' not in s:
  s=s.replace('<section class="section" id="page-transactions">',settings_html+'<section class="section" id="page-transactions">',1)
 # Add settings entry in the mobile navigation and make Record the center button.
 nav_old='<button onclick="openTransaction()"><span>⊕</span><span>Catat</span></button>'
-nav_new='<button data-page="settings"><span>⚙</span><span>Setelan</span></button><button data-action="record" onclick="openTransaction()"><span>＋</span><span>Catat</span></button>'
+nav_new='<button data-action="record" onclick="openTransaction()"><span>＋</span><span>Catat</span></button>'
 s=s.replace(nav_old,nav_new,1)
 # Insert backup and modal behavior functions into the app script before it closes.
 backup_js = r"""
@@ -105,6 +111,25 @@ const _ruOpenTransaction=window.openTransaction;
 window.openTransaction=function(id){if(typeof _ruOpenTransaction==='function')_ruOpenTransaction(id);setTimeout(setModalBodyLock,0)};
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.closest('.modal-backdrop'))setTimeout(setModalBodyLock,0);if(b.dataset.page==='settings'){e.preventDefault();if(typeof go==='function')go('settings');document.querySelectorAll('#mobileBottomNav button').forEach(x=>x.classList.toggle('active',x===b));}});
 document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(setModalBodyLock).observe(el,{attributes:true,attributeFilter:['style','class']}));
+/* Keep five bottom-nav slots; move the existing Excel export control into Settings. */
+(function arrangeHeaderActions(){
+ const top=document.querySelector('.top');
+ if(top&&!document.getElementById('settingsShortcut')){
+   const b=document.createElement('button');b.type='button';b.id='settingsShortcut';b.className='small settings-shortcut';b.textContent='⚙ Pengaturan';b.setAttribute('aria-label','Buka pengaturan');b.addEventListener('click',()=>{if(typeof go==='function')go('settings')});top.appendChild(b);
+ }
+ const all=[...document.querySelectorAll('button,a,[role="button"]')];
+ const exportBtn=all.find(el=>/\b(ekspor|export)\s+excel\b/i.test((el.innerText||el.textContent||'').replace(/[⬇⬆⇩↓↑📊]/g,' ').trim()));
+ const settingsActions=document.querySelector('#page-settings .backup-actions');
+ if(exportBtn&&settingsActions){
+   exportBtn.removeAttribute('id');exportBtn.textContent='📊 Ekspor Excel';exportBtn.setAttribute('type','button');exportBtn.classList.add('excel-export-settings');settingsActions.insertBefore(exportBtn,settingsActions.firstChild);
+ }
+ document.querySelectorAll('button,a,[role="button"]').forEach(el=>{
+   const label=(el.innerText||el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+   if(/catat transaksi/.test(label)){el.remove();return}
+   if(/\b(ekspor|export)\s+excel\b/.test(label)&&!el.classList.contains('excel-export-settings'))el.remove();
+ });
+ document.querySelectorAll('.top .actions').forEach(box=>{if(!box.querySelector('button,a,[role="button"]'))box.remove()});
+})();
 function exportBackup(){try{const payload={app:'RuangUsaha',formatVersion:1,exportedAt:new Date().toISOString(),data:state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='RuangUsaha-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);showToast('Cadangan disiapkan. Pastikan file tersimpan di perangkat.')}catch(err){alert('Ekspor gagal: '+err.message)}}
 function importBackupFile(event){const file=event.target.files&&event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(String(reader.result||'')),d=parsed.data||parsed;if(!d||!Array.isArray(d.transactions)||!Array.isArray(d.accounts)||!Array.isArray(d.categories))throw new Error('Format file cadangan tidak dikenali');if(!confirm('Impor akan mengganti data saat ini. Pastikan Anda sudah mengekspor cadangan data terbaru. Lanjutkan?'))return;state={...state,...d,accounts:d.accounts,transactions:d.transactions,categories:d.categories,businesses:Array.isArray(d.businesses)?d.businesses:[],products:Array.isArray(d.products)?d.products:[]};save();if(typeof render==='function')render();showToast('Data berhasil dipulihkan.')}catch(err){alert('File cadangan tidak valid atau rusak: '+err.message)}finally{event.target.value=''}};reader.onerror=()=>alert('File tidak dapat dibaca.');reader.readAsText(file)}
 """
