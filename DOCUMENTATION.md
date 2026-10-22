@@ -11,17 +11,15 @@
 
 ## 2. Cara mengunduh dan memasang APK
 
-Saat dokumentasi ini ditulis, hasil build disimpan sebagai artifact GitHub Actions bernama `RuangUsaha-debug-apk`. GitHub menyediakan artifact ini sebagai ZIP, bukan tautan langsung ke file APK di dalam ZIP.
+APK diterbitkan sebagai aset GitHub Release publik sehingga dapat diunduh sebagai file APK secara langsung.
 
-1. Buka halaman [build terbaru](https://github.com/poetate12-debug/Management-keuangan-usaha/actions/runs/39661361566).
-2. Gulir ke bagian **Artifacts**.
-3. Unduh **RuangUsaha-debug-apk**.
-4. Ekstrak ZIP menggunakan aplikasi File di Android.
-5. Ketuk `app-debug.apk` untuk memasang.
-6. Jika diminta, izinkan instalasi dari sumber tersebut hanya untuk aplikasi pengelola file yang digunakan.
-7. Jalankan pengujian sebelum memasukkan data usaha sungguhan.
+1. Buka [tautan unduh APK langsung](https://github.com/poetate12-debug/Management-keuangan-usaha/releases/download/latest/app-debug.apk).
+2. Tunggu hingga unduhan selesai.
+3. Ketuk file `app-debug.apk` untuk memasang.
+4. Jika Android meminta izin, izinkan instalasi dari sumber tersebut hanya untuk aplikasi yang digunakan.
+5. Buka aplikasi dan uji fitur sebelum memasukkan banyak data.
 
-Artifact terakhir tercatat kedaluwarsa pada **19 Januari 2027**. Jika tautan artifact sudah tidak tersedia, jalankan workflow build kembali dari tab Actions.
+Jika tautan gagal atau rilis belum selesai diperbarui, periksa [tab Actions](https://github.com/poetate12-debug/Management-keuangan-usaha/actions) dan [halaman rilis](https://github.com/poetate12-debug/Management-keuangan-usaha/releases/tag/latest).
 
 ## 3. Gambaran aplikasi
 
@@ -40,12 +38,15 @@ Fitur yang direncanakan/ditambahkan pada versi terbaru:
 
 ## 4. Penyimpanan data dan backup
 
-Aplikasi menggunakan penyimpanan lokal WebView/browser (localStorage) untuk data antarmuka. Data tidak otomatis tersinkron ke cloud atau perangkat lain.
+Aplikasi menyimpan data transaksi dan pengaturan secara lokal pada WebView (localStorage) dalam ruang privat aplikasi. Pembaruan aplikasi yang mempertahankan ID paket Android dan identitas penandatanganan yang sama biasanya tidak menghapus data lokal. Data tidak otomatis tersinkron ke cloud atau perangkat lain.
 
-- Membersihkan data aplikasi, mencopot aplikasi, atau tindakan tertentu pada penyimpanan dapat menghapus data lokal.
-- Sebelum memperbarui atau memasang ulang aplikasi, buat cadangan menggunakan fitur ekspor/backup yang tersedia jika ada.
-- Uji proses pemulihan backup dengan data percobaan.
-- Jangan mengandalkan sinkronisasi cloud kecuali fitur tersebut memang sudah dibuat.
+- Jangan mencopot aplikasi atau menekan Hapus data jika ingin mempertahankan data lokal.
+- Buat cadangan melalui **Pengaturan** sebelum pembaruan besar atau pemindahan perangkat.
+- **Ekspor Data** membuat file JSON berisi usaha, akun, kategori, produk, dan transaksi.
+- **Impor Data** membaca file JSON cadangan dan mengganti data yang sedang ada; selalu ekspor data saat ini terlebih dahulu.
+- **Ekspor Excel** tersedia dari Pengaturan untuk membuat laporan spreadsheet.
+- Simpan file cadangan di folder Download atau lokasi aman lain. Uji impor menggunakan salinan cadangan sebelum mengandalkannya.
+- Tidak ada sinkronisasi cloud otomatis.
 
 ## 5. Area sumber dan build
 
@@ -71,6 +72,11 @@ Lakukan perubahan pada sumber atau skrip patch di repositori, kemudian build ula
 ## 7. Checklist pengujian setiap build
 
 - [ ] Aplikasi terbuka tanpa crash atau layar kosong.
+- [ ] Tombol Catat berada di tengah navigasi bawah, lebih besar dan berwarna biru.
+- [ ] Form transaksi tampil sebagai pop-up di atas navigasi; dropdown usaha, serta tombol Simpan dan Batal tidak tertutup navigasi.
+- [ ] Saat pop-up terbuka, layar di belakangnya tidak ikut scroll.
+- [ ] Tombol Catat transaksi dan Ekspor Excel tidak tampil di toolbar halaman; Ekspor Excel tersedia dari Pengaturan.
+- [ ] Pengaturan dapat mengekspor dan mengimpor cadangan JSON.
 - [ ] Dapat menambah dan memilih usaha.
 - [ ] Dapat menambah/mengedit produk per usaha.
 - [ ] Pemasukan dengan satu produk tersimpan dengan benar.
@@ -113,6 +119,8 @@ Lakukan perubahan pada sumber atau skrip patch di repositori, kemudian build ula
 6. Pelihara catatan perubahan setiap versi.
 
 ## 10. Catatan versi
+
+Pembaruan UI terakhir: formulir transaksi dioptimalkan sebagai panel/modal di atas navigasi dengan kontrol scroll internal; tombol Simpan/Batal diberi lapisan di atas navigasi; aksi Catat transaksi di toolbar dihapus; Ekspor Excel dipindah ke Pengaturan; impor/ekspor cadangan JSON tersedia di Pengaturan.
 
 Isi bagian ini setiap kali ada pembaruan:
 
