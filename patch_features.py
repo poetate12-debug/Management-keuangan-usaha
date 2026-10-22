@@ -423,7 +423,6 @@ v5 = r"""
 </script>
 """
 if "</body>" not in s: raise SystemExit("body closing tag not found before v5")
-s=
 s=s.replace("</body>",v5+"</body>",1)
 # Transaction form cards, nested business settings pages, and HPP calculator.
 v6 = r"""
