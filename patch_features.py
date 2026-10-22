@@ -119,7 +119,7 @@ document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(se
  }
  const all=[...document.querySelectorAll('button,a,[role="button"]')];
  let exportBtn=all.find(el=>/\b(ekspor|export)\s+excel\b/i.test((el.innerText||el.textContent||'').replace(/[⬇⬆⇩↓↑📊]/g,' ').trim()));
- const backupButton=all.find(el=>/unduh cadangan json/i.test((el.innerText||el.textContent||'').replace(/\\s+/g,' ').trim()));
+ const backupButton=all.find(el=>/unduh cadangan json|ekspor data|unduh.*json|cadangan.*json/i.test((el.innerText||el.textContent||'').replace(/\\s+/g,' ').trim()));
  const settingsActions=document.querySelector('#page-settings .backup-actions')||(backupButton&&backupButton.parentElement&&backupButton.parentElement.parentElement);
  if(!exportBtn&&settingsActions){
    exportBtn=document.createElement('button');exportBtn.type='button';exportBtn.className='primary excel-export-settings';exportBtn.textContent='📊 Ekspor Excel';
@@ -129,6 +129,9 @@ document.querySelectorAll('.modal-backdrop').forEach(el=>new MutationObserver(se
    exportBtn.removeAttribute('id');exportBtn.textContent='📊 Ekspor Excel';exportBtn.setAttribute('type','button');exportBtn.classList.add('excel-export-settings');exportBtn.onclick=()=>exportExcel();
    if(exportBtn.parentElement!==settingsActions)settingsActions.insertBefore(exportBtn,settingsActions.firstChild);
  }
+ // Explicitly bind the JSON backup button for Android WebView.
+ const jsonButton=[...document.querySelectorAll('#page-settings button')].find(el=>/unduh cadangan json|ekspor data|unduh.*json|cadangan.*json/i.test((el.innerText||el.textContent||'').replace(/\\s+/g,' ').trim()));
+ if(jsonButton){jsonButton.type='button';jsonButton.onclick=function(ev){if(ev){ev.preventDefault();ev.stopPropagation()}exportBackup()}}
  document.querySelectorAll('button,a,[role="button"]').forEach(el=>{
    const label=(el.innerText||el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
    if(/catat transaksi/.test(label)){el.remove();return}
@@ -169,7 +172,24 @@ function exportExcel(){
   showToast('Ekspor Excel disiapkan. Periksa folder Unduhan.');
  }catch(err){alert('Ekspor Excel gagal: '+(err&&err.message?err.message:String(err)))}
 }
-function exportBackup(){try{const payload=JSON.stringify({app:'RuangUsaha',formatVersion:1,exportedAt:new Date().toISOString(),data:state},null,2),filename='KasUsaha-backup-'+new Date().toISOString().slice(0,10)+'.json';if(window.AndroidDownloads&&typeof window.AndroidDownloads.saveFile==='function'){const bytes=new TextEncoder().encode(payload),parts=[];for(let i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode(...bytes.subarray(i,i+8192)));window.AndroidDownloads.saveFile(filename,'application/json',btoa(parts.join('')))}else{const blob=new Blob([payload],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)}showToast('Cadangan JSON disiapkan. Periksa folder Unduhan.')}catch(err){alert('Ekspor gagal: '+err.message)}}
+function exportBackup(){
+ try{
+  const payload=JSON.stringify({app:'RuangUsaha',formatVersion:1,exportedAt:new Date().toISOString(),data:state},null,2);
+  const filename='KasUsaha-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  if(window.AndroidDownloads&&typeof window.AndroidDownloads.saveFile==='function'){
+   const bytes=new TextEncoder().encode(payload),parts=[];
+   for(let i=0;i<bytes.length;i+=8192)parts.push(String.fromCharCode(...bytes.subarray(i,i+8192)));
+   window.AndroidDownloads.saveFile(filename,'application/json',btoa(parts.join('')));
+   showToast('Membuat cadangan JSON… Periksa folder Unduhan.');
+  }else{
+   const blob=new Blob([payload],{type:'application/json;charset=utf-8'});
+   const url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download=filename;a.style.display='none';document.body.appendChild(a);a.click();
+   setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},1000);
+   showToast('Unduhan cadangan JSON dimulai.');
+  }
+ }catch(err){alert('Unduh cadangan JSON gagal: '+(err&&err.message?err.message:String(err)))}
+}
 function importBackupFile(event){const file=event.target.files&&event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const parsed=JSON.parse(String(reader.result||'')),d=parsed.data||parsed;if(!d||!Array.isArray(d.transactions)||!Array.isArray(d.accounts)||!Array.isArray(d.categories))throw new Error('Format file cadangan tidak dikenali');if(!confirm('Impor akan mengganti data saat ini. Pastikan Anda sudah mengekspor cadangan data terbaru. Lanjutkan?'))return;state={...state,...d,accounts:d.accounts,transactions:d.transactions,categories:d.categories,businesses:Array.isArray(d.businesses)?d.businesses:[],products:Array.isArray(d.products)?d.products:[]};save();if(typeof render==='function')render();showToast('Data berhasil dipulihkan.')}catch(err){alert('File cadangan tidak valid atau rusak: '+err.message)}finally{event.target.value=''}};reader.onerror=()=>alert('File tidak dapat dibaca.');reader.readAsText(file)}
 """
 # Add just before the final script closing tag; preserve other script tags.
