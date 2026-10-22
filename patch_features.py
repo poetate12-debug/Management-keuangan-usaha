@@ -48,7 +48,7 @@ s=s.replace("const t={id:id||uid(),type,businessId:document.getElementById('fBus
 s=s.replace("amount:Math.round(amount),note:document.getElementById('fNote').value.trim()};","amount:Math.round(amount),note:document.getElementById('fNote').value.trim()};if(type==='income'&&items.length)t.amount=Math.round(items.reduce((n,i)=>n+i.qty*i.price,0));",1)
 s=s.replace("if(!accountId||!Number.isFinite(amount)||amount<=0)return showToast('Pilih akun dan isi nominal yang valid.');","if(!accountId||!Number.isFinite(amount)||amount<=0)return showToast('Pilih dompet/rekening dan isi nominal yang valid.');if(type!=='transfer'&&!document.getElementById('fBusiness').value)return showToast('Pilih usaha untuk transaksi ini.');",1)
 productjs=r"""
-function openProduct(id){document.getElementById('productForm').reset();document.getElementById('productId').value='';document.getElementById('productPrice').value='0';document.getElementById('productUnit').value='pcs';const sel=document.getElementById('productBusiness');sel.innerHTML=state.businesses.filter(b=>!b.archived).map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>').join('');document.getElementById('productModalTitle').textContent=id?'Edit produk':'Tambah produk';if(id){const p=state.products.find(x=>x.id===id);if(!p)return;document.getElementById('productId').value=p.id;sel.value=p.businessId;document.getElementById('productName').value=p.name;document.getElementById('productPrice').value=p.price;document.getElementById('productUnit').value=p.unit||'pcs'}document.getElementById('productModal').style.display='flex'}
+function openProduct(id){document.getElementById('productBusiness').disabled=false;document.getElementById('productForm').reset();document.getElementById('productId').value='';document.getElementById('productPrice').value='0';document.getElementById('productUnit').value='pcs';const sel=document.getElementById('productBusiness');sel.innerHTML=state.businesses.filter(b=>!b.archived).map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>').join('');document.getElementById('productModalTitle').textContent=id?'Edit produk':'Tambah produk';if(id){const p=state.products.find(x=>x.id===id);if(!p)return;document.getElementById('productId').value=p.id;sel.value=p.businessId;document.getElementById('productName').value=p.name;document.getElementById('productPrice').value=p.price;document.getElementById('productUnit').value=p.unit||'pcs'}document.getElementById('productModal').style.display='flex'}
 document.getElementById('productForm').addEventListener('submit',e=>{e.preventDefault();const id=document.getElementById('productId').value,businessId=document.getElementById('productBusiness').value,name=document.getElementById('productName').value.trim(),price=Math.max(0,Math.round(Number(document.getElementById('productPrice').value)||0)),unit=document.getElementById('productUnit').value.trim()||'pcs';if(!businessId||!name)return showToast('Pilih usaha dan isi nama produk.');if(id){const p=state.products.find(x=>x.id===id);if(p)Object.assign(p,{businessId,name,price,unit})}else state.products.push({id:uid(),businessId,name,price,unit});closeModal('productModal');save();showToast('Produk disimpan.')});
 function deleteProduct(id){if(state.transactions.some(t=>(t.items||[]).some(i=>i.productId===id)))return alert('Produk sudah dipakai dalam transaksi sehingga tidak dapat dihapus.');if(confirm('Hapus produk ini?')){state.products=state.products.filter(p=>p.id!==id);save()}}
 function renderProducts(){const f=document.getElementById('productBusinessFilter');if(!f)return;const old=f.value;f.innerHTML='<option value="">Semua usaha</option>'+state.businesses.map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>').join('');if([...f.options].some(o=>o.value===old))f.value=old;const rows=state.products.filter(p=>!f.value||p.businessId===f.value);document.getElementById('productsList').innerHTML=rows.map(p=>'<div class="account"><div style="min-width:0"><strong>'+esc(p.name)+'</strong><small>'+esc(businessName(p.businessId))+' · '+money(p.price)+' / '+esc(p.unit||'pcs')+'</small></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="small" onclick="openProduct(\''+esc(p.id)+'\')">Edit</button><button class="small danger" onclick="deleteProduct(\''+esc(p.id)+'\')">Hapus</button></div></div>').join('')||'<div class="empty">Belum ada produk. Tekan Tambah produk untuk membuat daftar.</div>'}
@@ -158,7 +158,7 @@ v4 = r"""
 <div class="panel-head"><div><h2>Pengaturan per usaha</h2><div class="desc">Kategori dan produk dikelola terpisah untuk setiap usaha.</div></div></div>
 <div class="field"><label>Pilih usaha</label><select id="bizSettingsBusiness"></select></div>
 <div class="panel-head" style="margin-top:15px"><div><h3>Kategori usaha</h3><div class="desc">Kategori pemasukan dan pengeluaran khusus usaha terpilih.</div></div><button type="button" class="primary" onclick="openBusinessCategory()">＋ Kategori</button></div>
-<div id="bizSettingsCategories"></div>
+<div id="bizSettingsCategories"></div><div class="panel-head" style="margin-top:18px"><div><h3>Produk usaha</h3><div class="desc">Produk hanya milik usaha yang dipilih.</div></div><button type="button" class="primary" onclick="openBusinessProduct()">＋ Produk</button></div><div id="bizSettingsProducts"></div>
 </div>
 <div class="modal-backdrop" id="bizCategoryModal" style="display:none"><div class="modal"><div class="modal-head"><h2 id="bizCategoryTitle">Kategori usaha</h2><button type="button" onclick="closeModal('bizCategoryModal')">✕</button></div>
 <form id="bizCategoryForm"><input type="hidden" id="bizCategoryId"><div class="field"><label>Usaha</label><select id="bizCategoryBusiness" required></select></div><div class="field"><label>Jenis kategori</label><select id="bizCategoryType"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select></div><div class="field"><label>Nama kategori</label><input id="bizCategoryName" required maxlength="70" placeholder="Contoh: Cetak foto"></div><div class="form-actions"><button type="button" onclick="closeModal('bizCategoryModal')">Batal</button><button type="submit" class="primary">Simpan kategori</button></div></form>
@@ -201,27 +201,27 @@ v4 = r"""
    const type=document.getElementById('fType').value,bid=document.getElementById('fBusiness').value,cat=document.getElementById('fCategory');
    if(!cat)return;
    const previous=cat.value;
-   const eligible=(state.categories||[]).filter(c=>c.type===type && (type==='transfer' || !c.businessId || c.businessId===bid));
+   const businessField=document.getElementById('fBusiness')?.closest('.field');if(businessField)businessField.style.display=type==='transfer'?'none':'';const catField=cat?.closest('.field');if(catField)catField.style.display=type==='transfer'?'none':'';const eligibleAll=(state.categories||[]).filter(c=>c.type===type && (type==='transfer' || !c.businessId || c.businessId===bid));const ownNames=new Set(eligibleAll.filter(c=>c.businessId===bid).map(c=>c.name.toLowerCase()));const eligible=eligibleAll.filter(c=>c.businessId===bid||!ownNames.has(c.name.toLowerCase()));
    cat.innerHTML=eligible.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
    if(eligible.some(c=>c.id===previous))cat.value=previous;
  };
  function businessSelectOptions(selected){return (state.businesses||[]).filter(b=>!b.archived).map(b=>'<option value="'+esc(b.id)+'" '+(b.id===selected?'selected':'')+'>'+esc(b.name)+'</option>').join('')}
  function selectedBiz(){return document.getElementById('bizSettingsBusiness').value}
  window.renderBusinessCategorySettings=function(){
-   const sel=document.getElementById('bizSettingsBusiness'),old=sel.value;
+   const panel=document.getElementById('businessCategorySettings'),section=document.getElementById('page-businesses');if(panel&&section&&panel.parentElement!==section)section.appendChild(panel);const sel=document.getElementById('bizSettingsBusiness'),old=sel.value;
    sel.innerHTML=businessSelectOptions(old);
    if(!sel.value&&sel.options.length)sel.selectedIndex=0;
    const bid=sel.value;
    document.getElementById('bizCategoryBusiness').innerHTML=businessSelectOptions(bid);
-   const cats=(state.categories||[]).filter(c=>c.businessId===bid);
+   const cats=(state.categories||[]).filter(c=>c.businessId===bid||!c.businessId);
    document.getElementById('bizSettingsCategories').innerHTML=['income','expense'].map(type=>'<h4 style="margin:12px 0 4px">'+(type==='income'?'PEMASUKAN':'PENGELUARAN')+'</h4>'+cats.filter(c=>c.type===type).map(c=>'<div class="biz-cat-row"><span>'+esc(c.name)+'</span><span><button type="button" class="small" onclick="openBusinessCategory(&quot;'+esc(c.id)+'&quot;)">Edit</button> <button type="button" class="small danger" onclick="deleteBusinessCategory(&quot;'+esc(c.id)+'&quot;)">Hapus</button></span></div>').join('')||'<div class="desc">Belum ada kategori untuk usaha ini.</div>').join('');
-   const pf=document.getElementById('productBusinessFilter');if(pf&&bid){pf.value=bid;if(window.renderProducts)renderProducts()}
+   const pf=document.getElementById('productBusinessFilter');if(pf&&bid){pf.value=bid;if(window.renderProducts)renderProducts()}if(window.renderBusinessProducts)renderBusinessProducts()
  };
  window.openBusinessCategory=function(id){
    const sel=document.getElementById('bizCategoryBusiness');sel.innerHTML=businessSelectOptions(selectedBiz());
    document.getElementById('bizCategoryForm').reset();document.getElementById('bizCategoryId').value='';
    document.getElementById('bizCategoryTitle').textContent=id?'Edit kategori':'Tambah kategori';
-   if(id){const c=state.categories.find(x=>x.id===id);if(!c)return;document.getElementById('bizCategoryId').value=c.id;sel.value=c.businessId;document.getElementById('bizCategoryType').value=c.type;document.getElementById('bizCategoryName').value=c.name}
+   if(id){const c=state.categories.find(x=>x.id===id);if(!c)return;const scoped=c.businessId===selectedBiz();document.getElementById('bizCategoryId').value=scoped?c.id:'';sel.value=selectedBiz();document.getElementById('bizCategoryTitle').textContent=scoped?'Edit kategori':'Salin kategori ke usaha';document.getElementById('bizCategoryType').value=c.type;document.getElementById('bizCategoryName').value=c.name}
    document.getElementById('bizCategoryModal').style.display='flex';
  };
  window.deleteBusinessCategory=function(id){
@@ -236,6 +236,8 @@ v4 = r"""
    else state.categories.push({id:uid(),businessId,type,name});
    save();closeModal('bizCategoryModal');renderBusinessCategorySettings();updateTxForm();showToast('Kategori usaha disimpan.');
  });
+ window.openBusinessProduct=function(id){if(typeof openProduct!=='function')return;openProduct(id);const sel=document.getElementById('productBusiness');sel.value=selectedBiz();sel.disabled=true;};
+  window.renderBusinessProducts=function(){const bid=selectedBiz(),host=document.getElementById('bizSettingsProducts');if(!host)return;const list=(state.products||[]).filter(p=>p.businessId===bid);host.innerHTML=list.map(p=>'<div class="biz-cat-row"><span><strong>'+esc(p.name)+'</strong><small class="desc" style="display:block">'+money(p.price)+' / '+esc(p.unit||'pcs')+'</small></span><span><button type="button" class="small" onclick="openBusinessProduct(&quot;'+esc(p.id)+'&quot;)">Edit</button> <button type="button" class="small danger" onclick="deleteProduct(&quot;'+esc(p.id)+'&quot;)">Hapus</button></span></div>').join('')||'<div class="desc">Belum ada produk untuk usaha ini.</div>'};
  document.getElementById('bizSettingsBusiness').addEventListener('change',renderBusinessCategorySettings);
  const oldRender=window.renderBusinesses;
  if(typeof oldRender==='function')window.renderBusinesses=function(){oldRender();renderBusinessCategorySettings()};
