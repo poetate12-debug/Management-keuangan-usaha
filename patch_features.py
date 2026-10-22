@@ -780,7 +780,7 @@ v7 = r"""
    const result=baseOpenBusiness&&baseOpenBusiness(id);
    currentBusiness=id;window.ruCurrentBusinessId=id;
    addPhotoView(id);
-   if(!window.ruSuppressBusinessHistory)pushUi('business',id);
+   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory&&!window.ruSuppressBusinessHistory)pushUi('business',id);
    return result;
  };
  const baseCloseBusiness=window.closeBusinessDetail;
@@ -795,7 +795,7 @@ v7 = r"""
    const id=currentBusiness;
    if(baseCloseBusiness)baseCloseBusiness();
    currentBusiness=null;window.ruCurrentBusinessId=null;
-   finishUiBack('business',id);
+   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)finishUiBack('business',id);
  };
  // Browser history also drives Android's native Back button via WebView.goBack().
  const uiStack=[];let uiSeq=0,pendingUiBack=false,suppressPageHistory=false;
@@ -815,7 +815,7 @@ v7 = r"""
  let pageBeforeNav=null;
  window.go=function(page){
    const active=document.querySelector('.section.active'),from=active?active.id.replace('page-',''):'dashboard';
-   if(!suppressPageHistory&&from!==page)pushUi('page',from);
+   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory&&!suppressPageHistory&&from!==page)pushUi('page',from);
    if(typeof baseGo==='function')baseGo(page);
  };
  const originalCloseModal=window.closeModal;
@@ -823,7 +823,7 @@ v7 = r"""
    if(typeof originalCloseModal==='function')originalCloseModal(id);
    else{const el=document.getElementById(id);if(el)el.style.display='none'}
    const top=uiStack[uiStack.length-1];
-   finishUiBack('modal',id);
+   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)finishUiBack('modal',id);
    updateBodyLock();
  };
  function updateBodyLock(){
@@ -835,6 +835,7 @@ v7 = r"""
    return [...document.querySelectorAll('.modal-backdrop')].reverse().find(el=>getComputedStyle(el).display!=='none');
  }
  function observeModalOpen(){
+   if(window.ruUseSingleNavigationStack){updateBodyLock();return}
    const visible=topVisibleModal();
    if(visible){
      const top=uiStack[uiStack.length-1];
@@ -866,7 +867,7 @@ v7 = r"""
  const baseOpenSub=window.openBusinessSubPage;
  window.openBusinessSubPage=function(kind){
    const id=currentBusiness||window.ruCurrentBusinessId;if(!id)return;
-   pushUi('subpage',id);
+   if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory)pushUi('subpage',id);
    if(kind==='categories'||kind==='products'){
      if(typeof baseOpenSub==='function')baseOpenSub(kind);
      setTimeout(()=>{
@@ -942,7 +943,7 @@ v7 = r"""
   const ruBaseGo=window.go;
   window.go=function(page){
     const active=document.querySelector('.section.active'),from=active?active.id.replace('page-',''):'dashboard';
-    if(!ruSuppressGoHistory&&from!==page)pushUi('page',from,page);
+    if(!window.ruUseSingleNavigationStack&&!window.ruSuppressLegacyHistory&&!ruSuppressGoHistory&&from!==page)pushUi('page',from,page);
     if(typeof ruBaseGo==='function')ruBaseGo(page);
   };
   const ruBaseCloseModal=window.closeModal;
@@ -958,6 +959,7 @@ v7 = r"""
   }
   function ruTopModal(){return [...document.querySelectorAll('.modal-backdrop')].reverse().find(el=>getComputedStyle(el).display!=='none')}
   function ruObserveModal(){
+    if(window.ruUseSingleNavigationStack){ruUpdateBodyLock();return}
     const visible=ruTopModal(),top=ruUiStack[ruUiStack.length-1];
     if(visible&&(!top||top.kind!=='modal'||top.id!==visible.id))pushUi('modal',visible.id);
     ruUpdateBodyLock();
