@@ -1936,3 +1936,469 @@ if "KasUsaha transaction wallet-first flow v1" not in s:
         raise SystemExit("Tidak menemukan penutup body untuk alur pilih dompet")
     s=s.replace("</body>",wallet_first_js+"\n</body>",1)
     p.write_text(s)
+
+
+# KasUsaha financial dashboard and reconciliation v1.
+# Additive enhancement: preserve existing navigation/pages and all existing transaction data.
+s = p.read_text()
+if "KasUsaha financial dashboard and reconciliation v1" not in s:
+    old_wallet_balance = """    transactions().forEach(function(t){
+      var amount=Number(t.amount)||0;
+      if(t.accountId===account.id){
+        if(t.type==='income') balance+=amount;
+        else if(t.type==='expense'||t.type==='transfer') balance-=amount;
+      }
+      if(t.type==='transfer'&&t.toAccountId===account.id) balance+=amount;
+    });
+    return balance;
+  }
+  function accountUsed(id){"""
+    new_wallet_balance = """    transactions().forEach(function(t){
+      var amount=Number(t.amount)||0;
+      if(t.accountId===account.id){
+        if(t.type==='income') balance+=amount;
+        else if(t.type==='expense'||t.type==='transfer') balance-=amount;
+      }
+      if(t.type==='transfer'&&t.toAccountId===account.id) balance+=amount;
+    });
+    ((appState().walletAdjustments)||[]).forEach(function(a){if(a.accountId===account.id)balance+=Number(a.delta)||0;});
+    return balance;
+  }
+  function accountUsed(id){"""
+    if old_wallet_balance not in s:
+        raise SystemExit("Tidak menemukan fungsi saldo dompet untuk memperluas penyesuaian")
+    s = s.replace(old_wallet_balance, new_wallet_balance, 1)
+    old_account_used = """  function accountUsed(id){
+    return transactions().some(function(t){return t.accountId===id||t.toAccountId===id;});
+  }"""
+    new_account_used = """  function accountUsed(id){
+    return transactions().some(function(t){return t.accountId===id||t.toAccountId===id;}) ||
+      ((appState().walletAdjustments)||[]).some(function(a){return a.accountId===id;});
+  }"""
+    if old_account_used not in s:
+        raise SystemExit("Tidak menemukan pemeriksaan penggunaan dompet")
+    s = s.replace(old_account_used, new_account_used, 1)
+    old_picker_balance = """     transactions().forEach(function(t){
+       var v=Number(t.amount)||0;
+       if(t.accountId===a.id){if(t.type==='income')n+=v;else if(t.type==='expense'||t.type==='transfer')n-=v;}
+       if(t.type==='transfer'&&t.toAccountId===a.id)n+=v;
+     });
+     return n;
+   }
+   function ensurePicker(){"""
+    new_picker_balance = """     transactions().forEach(function(t){
+       var v=Number(t.amount)||0;
+       if(t.accountId===a.id){if(t.type==='income')n+=v;else if(t.type==='expense'||t.type==='transfer')n-=v;}
+       if(t.type==='transfer'&&t.toAccountId===a.id)n+=v;
+     });
+     (((st().walletAdjustments)||[])).forEach(function(x){if(x.accountId===a.id)n+=Number(x.delta)||0;});
+     return n;
+   }
+   function ensurePicker(){"""
+    if old_picker_balance not in s:
+        raise SystemExit("Tidak menemukan perhitungan saldo pada pemilih dompet")
+    s = s.replace(old_picker_balance, new_picker_balance, 1)
+
+    finance_ui_js = r"""
+<script>
+/* KasUsaha financial dashboard and reconciliation v1 */
+(function(){
+  if(window.__ruFinancialDashboardV1)return;
+  window.__ruFinancialDashboardV1=true;
+  function app(){return (typeof state!=='undefined'&&state)?state:(window.state||{});}
+  function txs(){return Array.isArray(app().transactions)?app().transactions:[];}
+  function wallets(){return Array.isArray(app().accounts)?app().accounts:[];}
+  function businesses(){return (Array.isArray(app().businesses)?app().businesses:[]).filter(function(b){return !b.archived;});}
+  function adjustments(){return Array.isArray(app().walletAdjustments)?app().walletAdjustments:[];}
+  function ensureAdjustments(){if(!Array.isArray(app().walletAdjustments))app().walletAdjustments=[];return app().walletAdjustments;}
+  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function rupiah(v){return 'Rp'+(Number(v)||0).toLocaleString('id-ID');}
+  function walletName(id){var a=wallets().find(function(x){return x.id===id;});return a?a.name||'Dompet':'Dompet dihapus';}
+  function businessName(id){var b=businesses().find(function(x){return x.id===id;});return b?b.name:(id?'Usaha diarsipkan':'Operasional umum');}
+  function categoryName(id){var c=(app().categories||[]).find(function(x){return x.id===id;});return c?c.name:'';}
+  function typeName(t){return t==='income'?'Pemasukan':t==='expense'?'Pengeluaran':t==='transfer'?'Transfer antar dompet':'Penyesuaian saldo';}
+  function walletBalance(a){
+    var n=Number(a.opening!==undefined?a.opening:(a.balance!==undefined?a.balance:0))||0;
+    txs().forEach(function(t){
+      var v=Number(t.amount)||0;
+      if(t.accountId===a.id){if(t.type==='income')n+=v;else if(t.type==='expense'||t.type==='transfer')n-=v;}
+      if(t.type==='transfer'&&t.toAccountId===a.id)n+=v;
+    });
+    adjustments().forEach(function(x){if(x.accountId===a.id)n+=Number(x.delta)||0;});
+    return n;
+  }
+  function totalBalance(){return wallets().reduce(function(n,a){return n+walletBalance(a);},0);}
+  function currentDate(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function monthKey(t){var d=String(t&&t.date||'');if(/^\d{4}-\d{2}-\d{2}$/.test(d))return d.slice(0,7);var m=String(t&&(t.reportMonth||t.monthKey||t.month)||'');return /^\d{4}-\d{2}/.test(m)?m.slice(0,7):'';}
+  function dateKey(t){var d=String(t&&t.date||'');return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:'';}
+  function saveApp(){
+    try{if(typeof save==='function')save();else if(typeof window.save==='function')window.save();}
+    catch(e){alert('Gagal menyimpan data. Ekspor cadangan JSON dan coba kembali. '+(e&&e.message||''));return false;}
+    try{if(typeof window.render==='function')window.render();}catch(e){}
+    try{if(typeof window.renderRuMonthlyBusinessReport==='function')window.renderRuMonthlyBusinessReport();}catch(e){}
+    refreshDashboard();renderWalletView();renderFinanceReport();
+    return true;
+  }
+  var css = '<style id="ruFinancialDashboardCss">'
+    + '#ruFinanceDash{background:#fff;border:1px solid var(--line);border-radius:18px;padding:15px;margin:14px 0 18px;box-shadow:0 8px 24px rgba(25,40,70,.045)}'
+    + '#ruFinanceDash .ru-fd-head,#ruAllWallets .ru-fd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}'
+    + '#ruFinanceDash h2,#ruAllWallets h2,#ruAdvancedReport h2{font-size:17px;margin:0 0 4px}'
+    + '.ru-fd-sub{font-size:12px;color:var(--muted);line-height:1.5}'
+    + '.ru-fd-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:13px}'
+    + '.ru-fd-kpi{border:1px solid var(--line);border-radius:13px;padding:11px;min-width:0;background:#fff}'
+    + '.ru-fd-kpi small{display:block;font-size:11px;color:var(--muted);margin-bottom:6px}'
+    + '.ru-fd-kpi strong{display:block;font-size:clamp(12px,3.5vw,18px);overflow-wrap:anywhere}'
+    + '.ru-fd-chart{margin-top:15px;display:grid;gap:12px}'
+    + '.ru-fd-month{display:grid;grid-template-columns:47px minmax(0,1fr);gap:9px;align-items:center}'
+    + '.ru-fd-month-label{font-size:11px;color:var(--muted)}.ru-fd-bars{display:grid;gap:5px;min-width:0}'
+    + '.ru-fd-barline{display:flex;align-items:center;gap:6px;min-width:0}.ru-fd-bar{height:9px;border-radius:99px;min-width:2px;max-width:100%}'
+    + '.ru-fd-bar.in{background:#0c9b77}.ru-fd-bar.out{background:#ef7b68}.ru-fd-barline small{font-size:10px;color:var(--muted);white-space:nowrap}'
+    + '#ruFinanceDash .ru-fd-legend{display:flex;gap:13px;font-size:11px;color:var(--muted);margin-top:9px;flex-wrap:wrap}'
+    + '.ru-fd-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.ru-fd-link{cursor:pointer}'
+    + '#ruAdvancedReport{background:#fff;border:1px solid var(--line);border-radius:18px;padding:15px;margin:0 0 16px}'
+    + '#ruAdvancedReport .ru-fr-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:13px 0}'
+    + '#ruAdvancedReport label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}'
+    + '#ruAdvancedReport input,#ruAdvancedReport select{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;color:var(--ink)}'
+    + '#ruAdvancedReport .ru-fr-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 13px}#ruAdvancedReport .ru-fr-actions button{flex:1;min-width:125px}'
+    + '#ruAdvancedReport .ru-fr-results{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:12px 0}'
+    + '#ruAdvancedReport .ru-fr-metric{border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0}'
+    + '#ruAdvancedReport .ru-fr-metric small{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}'
+    + '#ruAdvancedReport .ru-fr-metric strong{display:block;font-size:clamp(11px,3.3vw,16px);overflow-wrap:anywhere}'
+    + '#ruAdvancedReport .ru-fr-business{border:1px solid var(--line);border-radius:13px;padding:12px;margin:9px 0}'
+    + '#ruAdvancedReport .ru-fr-business-head{display:flex;justify-content:space-between;gap:8px;align-items:center}'
+    + '#ruAdvancedReport .ru-fr-business-head strong{overflow-wrap:anywhere}#ruAdvancedReport .ru-fr-business-head span{font-weight:800;white-space:nowrap}'
+    + '#ruAdvancedReport .ru-fr-tx{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;border-top:1px solid var(--line);padding:9px 0;font-size:12px}'
+    + '#ruAdvancedReport .ru-fr-tx small{display:block;color:var(--muted);margin-top:3px}#ruAdvancedReport .ru-fr-tx strong{white-space:nowrap}'
+    + '#ruAdvancedReport .ru-fr-chart{display:grid;gap:10px;margin:12px 0}.ru-fr-chart-row{display:grid;grid-template-columns:54px minmax(0,1fr);gap:8px;align-items:center}.ru-fr-chart-label{font-size:11px;color:var(--muted)}'
+    + '.ru-fr-chart-bars{display:grid;gap:4px}.ru-fr-chart-bar{height:8px;border-radius:20px}.ru-fr-chart-bar.in{background:#0c9b77}.ru-fr-chart-bar.out{background:#ef7b68}'
+    + '#ruAllWallets{display:none;position:fixed;inset:0;z-index:20000;background:#f5f7fb;color:var(--ink);overflow-y:auto;padding:calc(14px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom));box-sizing:border-box}'
+    + '#ruAllWallets .ru-fd-sheet{max-width:650px;margin:0 auto}#ruAllWallets .ru-fd-panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:12px}'
+    + '.ru-aw-card{border:1px solid var(--line);border-radius:13px;padding:13px;display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:8px;background:#fff;cursor:pointer}'
+    + '.ru-aw-card small{display:block;color:var(--muted);margin-top:4px}.ru-aw-card strong{overflow-wrap:anywhere}.ru-aw-history{border-top:1px solid var(--line);padding:10px 0;font-size:12px;display:flex;justify-content:space-between;gap:10px}'
+    + '.ru-fd-btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 12px;color:var(--ink);font-size:13px}.ru-fd-primary{background:#176d62;color:#fff;border-color:#176d62}'
+    + '#ruReconcileModal{display:none;position:fixed;inset:0;z-index:21000;background:rgba(15,23,42,.55);padding:14px;align-items:flex-end;justify-content:center;box-sizing:border-box}'
+    + '#ruReconcileModal .ru-rec-dialog{width:100%;max-width:520px;max-height:92dvh;overflow:auto;border-radius:20px;background:#fff;padding:17px;box-sizing:border-box;color:#172033}'
+    + '#ruReconcileModal input,#ruReconcileModal select,#ruReconcileModal textarea{width:100%;box-sizing:border-box;border:1px solid #dce2eb;border-radius:10px;padding:11px;background:#fff;color:#172033}'
+    + '#ruReconcileModal .ru-rec-field{margin:12px 0}#ruReconcileModal label{display:block;margin-bottom:5px;font-size:12px;color:#586579}'
+    + '@media(max-width:540px){.ru-fd-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#ruAdvancedReport .ru-fr-controls{grid-template-columns:1fr}#ruAdvancedReport .ru-fr-results{grid-template-columns:repeat(2,minmax(0,1fr))}.ru-fd-month{grid-template-columns:39px minmax(0,1fr)}}'
+    + '</style>';
+  if(!document.getElementById('ruFinancialDashboardCss'))document.head.insertAdjacentHTML('beforeend',css);
+
+  function ensureDashboard(){
+    var page=document.getElementById('page-dashboard');if(!page)return;
+    if(!document.getElementById('ruFinanceDash')){
+      var html='<section id="ruFinanceDash"><div class="ru-fd-head"><div><h2>Ringkasan keuangan</h2><div class="ru-fd-sub">Pemasukan dan pengeluaran enam bulan terakhir.</div></div><button type="button" class="ru-fd-btn" id="ruOpenAllWallets">Lihat semua saldo ›</button></div><div id="ruFdKpis" class="ru-fd-kpis"></div><div id="ruFdChart" class="ru-fd-chart"></div><div class="ru-fd-legend"><span><i class="ru-fd-dot" style="background:#0c9b77"></i>Pemasukan</span><span><i class="ru-fd-dot" style="background:#ef7b68"></i>Pengeluaran</span></div></section>';
+      var cards=page.querySelector('.cards');if(cards)cards.insertAdjacentHTML('afterend',html);else page.insertAdjacentHTML('beforeend',html);
+    }
+  }
+  function lastMonths(){
+    var out=[],d=new Date();d.setDate(1);d.setHours(12,0,0,0);
+    for(var i=5;i>=0;i--){var x=new Date(d.getFullYear(),d.getMonth()-i,1,12),key=x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0');out.push({key:key,label:x.toLocaleDateString('id-ID',{month:'short'}),inc:0,out:0});}
+    out.forEach(function(m){txs().forEach(function(t){if(monthKey(t)!==m.key)return;var v=Number(t.amount)||0;if(t.type==='income')m.inc+=v;else if(t.type==='expense')m.out+=v;});});
+    return out;
+  }
+  function bindTotalBalance(){
+    var page=document.getElementById('page-dashboard');if(!page)return;
+    var cards=[].slice.call(page.querySelectorAll('.cards .card'));
+    var chosen=cards.find(function(c){return /total\s+saldo|saldo\s+total|total\s+balance|total\s+seluruh\s+saldo/i.test(c.textContent||'');})||cards[3];
+    if(chosen){chosen.classList.add('ru-fd-link');chosen.setAttribute('role','button');chosen.setAttribute('tabindex','0');chosen.setAttribute('aria-label','Lihat saldo semua dompet');}
+  }
+  function refreshDashboard(){
+    ensureDashboard();bindTotalBalance();
+    var k=document.getElementById('ruFdKpis'),chart=document.getElementById('ruFdChart');if(!k||!chart)return;
+    var key=currentDate().slice(0,7),inc=0,out=0,count=0;
+    txs().forEach(function(t){if(monthKey(t)===key){if(t.type==='income')inc+=Number(t.amount)||0;else if(t.type==='expense')out+=Number(t.amount)||0;if(t.type==='income'||t.type==='expense')count++;}});
+    k.innerHTML='<div class="ru-fd-kpi"><small>Total seluruh saldo</small><strong>'+rupiah(totalBalance())+'</strong></div><div class="ru-fd-kpi"><small>Pemasukan bulan ini</small><strong style="color:#0c9b77">'+rupiah(inc)+'</strong></div><div class="ru-fd-kpi"><small>Pengeluaran bulan ini</small><strong style="color:#d65c4b">'+rupiah(out)+'</strong></div><div class="ru-fd-kpi"><small>Arus kas bulan ini</small><strong style="color:'+(inc-out<0?'#d65c4b':'#0c8069')+'">'+rupiah(inc-out)+'</strong></div><div class="ru-fd-kpi"><small>Transaksi bulan ini</small><strong>'+count+'</strong></div><div class="ru-fd-kpi"><small>Jumlah dompet</small><strong>'+wallets().length+'</strong></div>';
+    var months=lastMonths(),max=1;months.forEach(function(m){max=Math.max(max,m.inc,m.out);});
+    chart.innerHTML=months.map(function(m){return '<div class="ru-fd-month"><div class="ru-fd-month-label">'+esc(m.label)+'</div><div class="ru-fd-bars"><div class="ru-fd-barline"><div class="ru-fd-bar in" style="width:'+Math.max(m.inc?1:0,m.inc/max*100)+'%"></div><small>'+rupiah(m.inc)+'</small></div><div class="ru-fd-barline"><div class="ru-fd-bar out" style="width:'+Math.max(m.out?1:0,m.out/max*100)+'%"></div><small>'+rupiah(m.out)+'</small></div></div></div>';}).join('');
+  }
+
+  var walletViewId=null;
+  function ensureWalletView(){
+    if(document.getElementById('ruAllWallets'))return;
+    var html='<div id="ruAllWallets"><div class="ru-fd-sheet"><div class="ru-fd-head"><div><div class="ru-fd-sub">DOMPET & REKENING</div><h2>Semua saldo</h2><div class="ru-fd-sub">Saldo dihitung dari saldo awal, transaksi, transfer, dan penyesuaian.</div></div><button type="button" class="ru-fd-btn" id="ruCloseAllWallets">← Kembali</button></div><div class="ru-fd-panel"><div class="ru-fd-sub">TOTAL SELURUH SALDO</div><div id="ruAllWalletTotal" style="font-size:25px;font-weight:850;margin-top:5px;overflow-wrap:anywhere"></div><div id="ruWalletCards"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button type="button" class="ru-fd-btn ru-fd-primary" id="ruOpenReconcile">＋ Rekonsiliasi / penyesuaian</button></div></div><div class="ru-fd-panel"><h2 style="font-size:15px">Riwayat penyesuaian saldo</h2><div class="ru-fd-sub">Catatan ini terpisah dari pemasukan dan pengeluaran transaksi.</div><div id="ruAdjustHistory"></div></div><div class="ru-fd-panel" id="ruWalletTransactionsPanel" style="display:none"><div class="ru-fd-head"><h2 id="ruWalletTxTitle">Riwayat dompet</h2><button type="button" class="ru-fd-btn" id="ruCloseWalletTx">Tutup riwayat</button></div><div id="ruWalletTxHistory"></div></div></div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  }
+  function dateTimeText(s){if(!s)return '-';var d=new Date(s);return isNaN(d.getTime())?String(s):d.toLocaleString('id-ID');}
+  function renderWalletView(){
+    ensureWalletView();
+    var total=document.getElementById('ruAllWalletTotal'),host=document.getElementById('ruWalletCards'),hist=document.getElementById('ruAdjustHistory');
+    if(!total||!host||!hist)return;
+    total.textContent=rupiah(totalBalance());
+    host.innerHTML=wallets().map(function(a){
+      return '<div class="ru-aw-card" data-ru-wallet-detail="'+esc(a.id)+'"><div style="min-width:0"><strong>'+esc(a.name||'Dompet')+'</strong><small>'+esc(({cash:'Tunai / Kas',bank:'Rekening bank',ewallet:'E-wallet',other:'Lainnya'})[a.type]||'Dompet')+' · Saldo awal '+rupiah(a.opening!==undefined?a.opening:a.balance)+'</small></div><div style="text-align:right;min-width:0"><strong>'+rupiah(walletBalance(a))+'</strong><small>Lihat riwayat ›</small></div></div>';
+    }).join('')||'<div class="ru-fd-sub" style="padding:12px 0">Belum ada dompet.</div>';
+    var arr=adjustments().slice().sort(function(a,b){return String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||''));});
+    hist.innerHTML=arr.map(function(a){return '<div class="ru-aw-history"><div><strong>'+esc(walletName(a.accountId))+'</strong><small style="display:block;color:var(--muted);margin-top:3px">'+esc(dateTimeText(a.createdAt||a.date))+' · '+esc(a.note||'Penyesuaian saldo')+'</small></div><strong style="white-space:nowrap;color:'+(Number(a.delta)<0?'#d65c4b':'#0c8069')+'">'+(Number(a.delta)>0?'+':'')+rupiah(a.delta)+'</strong></div>';}).join('')||'<div class="ru-fd-sub" style="padding:12px 0">Belum ada penyesuaian saldo.</div>';
+    if(walletViewId)renderWalletTransactions(walletViewId);
+  }
+  function renderWalletTransactions(id){
+    walletViewId=id;var panel=document.getElementById('ruWalletTransactionsPanel');if(!panel)return;
+    var a=wallets().find(function(x){return x.id===id;});if(!a){panel.style.display='none';return;}
+    document.getElementById('ruWalletTxTitle').textContent='Riwayat: '+(a.name||'Dompet');
+    var rows=[];
+    txs().forEach(function(t){
+      var amount=Number(t.amount)||0;
+      if(t.accountId===id){
+        var incoming=t.type==='income',label=t.type==='transfer'?'Transfer keluar':typeName(t.type);
+        rows.push({date:t.date||'',label:label,note:t.note||categoryName(t.categoryId),amount:(incoming?1:-1)*amount});
+      }
+      if(t.type==='transfer'&&t.toAccountId===id)rows.push({date:t.date||'',label:'Transfer masuk',note:'Dari '+walletName(t.accountId),amount:amount});
+    });
+    adjustments().filter(function(x){return x.accountId===id;}).forEach(function(x){rows.push({date:x.createdAt||x.date||'',label:'Penyesuaian saldo',note:x.note||'',amount:Number(x.delta)||0,sortDate:x.createdAt||x.date||''});});
+    rows.sort(function(x,y){return String(y.sortDate||y.date||'').localeCompare(String(x.sortDate||x.date||''));});
+    document.getElementById('ruWalletTxHistory').innerHTML=rows.map(function(x){return '<div class="ru-aw-history"><div><strong>'+esc(x.label)+'</strong><small style="display:block;color:var(--muted);margin-top:3px">'+esc(x.date)+' · '+esc(x.note||'')+'</small></div><strong style="white-space:nowrap;color:'+(x.amount<0?'#d65c4b':'#0c8069')+'">'+(x.amount>0?'+':'')+rupiah(x.amount)+'</strong></div>';}).join('')||'<div class="ru-fd-sub" style="padding:12px 0">Belum ada riwayat untuk dompet ini.</div>';
+    panel.style.display='block';
+  }
+
+  function ensureReconcileModal(){
+    if(document.getElementById('ruReconcileModal'))return;
+    var html='<div id="ruReconcileModal"><div class="ru-rec-dialog"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><h2 style="margin:0;font-size:19px">Rekonsiliasi saldo</h2><div style="font-size:12px;color:#667085;margin-top:4px">Bandingkan saldo catatan dengan saldo sebenarnya.</div></div><button type="button" class="ru-fd-btn" id="ruRecClose">✕</button></div><form id="ruReconcileForm"><div class="ru-rec-field"><label for="ruRecWallet">Dompet / rekening</label><select id="ruRecWallet" required></select></div><div class="ru-rec-field"><label for="ruRecActual">Saldo aktual yang dihitung (Rp)</label><input id="ruRecActual" type="number" step="1" required placeholder="Masukkan saldo aktual"></div><div class="ru-fd-panel" style="margin:10px 0;padding:12px"><div style="font-size:12px;color:#667085">Saldo sistem saat ini</div><strong id="ruRecSystem" style="display:block;font-size:19px;margin:4px 0"></strong><div style="font-size:12px;color:#667085">Selisih penyesuaian</div><strong id="ruRecDifference" style="display:block;font-size:18px;margin-top:4px">-</strong></div><div class="ru-rec-field"><label for="ruRecNote">Catatan / alasan (opsional)</label><textarea id="ruRecNote" rows="2" maxlength="200" placeholder="Contoh: saldo awal dikoreksi setelah cek kas"></textarea></div><div style="display:flex;gap:8px;margin-top:16px"><button type="button" id="ruRecCancel" class="ru-fd-btn" style="flex:1">Batal</button><button type="submit" class="ru-fd-btn ru-fd-primary" style="flex:1">Simpan penyesuaian</button></div></form></div></div>';
+    document.body.insertAdjacentHTML('beforeend',html);
+  }
+  function openReconcile(){
+    ensureReconcileModal();var sel=document.getElementById('ruRecWallet');
+    sel.innerHTML=wallets().map(function(a){return '<option value="'+esc(a.id)+'">'+esc(a.name||'Dompet')+'</option>';}).join('');
+    if(!wallets().length){alert('Tambahkan dompet terlebih dahulu.');return;}
+    document.getElementById('ruRecActual').value='';
+    document.getElementById('ruRecNote').value='';
+    updateReconcile();document.getElementById('ruReconcileModal').style.display='flex';
+  }
+  function updateReconcile(){
+    var id=document.getElementById('ruRecWallet');if(!id)return;
+    var a=wallets().find(function(x){return x.id===id.value;});if(!a)return;
+    var sys=walletBalance(a),raw=document.getElementById('ruRecActual').value,valid=raw!==''&&Number.isFinite(Number(raw)),diff=valid?Math.round(Number(raw)-sys):null;
+    document.getElementById('ruRecSystem').textContent=rupiah(sys);
+    document.getElementById('ruRecDifference').textContent=diff===null?'Masukkan saldo aktual':(diff>0?'+':'')+rupiah(diff);
+    document.getElementById('ruRecDifference').style.color=diff===null?'#667085':diff<0?'#c24133':'#087f5b';
+  }
+
+  function ensureReport(){
+    var page=document.getElementById('page-reports');if(!page)return;
+    if(document.getElementById('ruAdvancedReport'))return;
+    var html='<div id="ruAdvancedReport"><div class="ru-fd-head"><div><h2>Laporan keuangan</h2><div class="ru-fd-sub">Filter periode dan usaha. Transfer tidak dihitung sebagai pemasukan atau pengeluaran.</div></div></div><div class="ru-fr-controls"><div><label for="ruFrPeriod">Periode laporan</label><select id="ruFrPeriod"><option value="daily">Harian</option><option value="weekly">Mingguan</option><option value="monthly" selected>Bulanan</option><option value="yearly">Tahunan</option><option value="custom">Rentang tanggal khusus</option></select></div><div id="ruFrDateWrap"><label for="ruFrDate">Tanggal acuan</label><input id="ruFrDate" type="date"></div><div id="ruFrMonthWrap" style="display:none"><label for="ruFrMonth">Bulan laporan</label><input id="ruFrMonth" type="month"></div><div id="ruFrYearWrap" style="display:none"><label for="ruFrYear">Tahun laporan</label><input id="ruFrYear" type="number" min="2000" max="2100"></div><div id="ruFrStartWrap" style="display:none"><label for="ruFrStart">Tanggal mulai</label><input id="ruFrStart" type="date"></div><div id="ruFrEndWrap" style="display:none"><label for="ruFrEnd">Tanggal akhir</label><input id="ruFrEnd" type="date"></div><div><label for="ruFrBusiness">Usaha</label><select id="ruFrBusiness"><option value="">Semua usaha</option></select></div></div><div id="ruFrRangeText" class="ru-fd-sub"></div><div id="ruFrResults" class="ru-fr-results"></div><h3 style="font-size:14px;margin:16px 0 8px">Grafik pemasukan vs pengeluaran</h3><div id="ruFrChart" class="ru-fr-chart"></div><h3 style="font-size:14px;margin:16px 0 8px">Laba / rugi kas per usaha</h3><div class="ru-fd-sub">Perhitungan = pemasukan transaksi dikurangi pengeluaran transaksi yang tercatat. Biaya HPP tersendiri tidak ditambahkan lagi agar tidak berisiko dihitung ganda.</div><div id="ruFrBusinesses"></div><h3 style="font-size:14px;margin:16px 0 8px">Rincian transaksi</h3><div id="ruFrTransactions"></div><div class="ru-fr-actions"><button type="button" class="ru-fd-btn ru-fd-primary" id="ruFrExportExcel">Ekspor laporan Excel (CSV)</button><button type="button" class="ru-fd-btn" id="ruFrExportPdf">Ekspor laporan PDF</button></div><div class="ru-fd-sub">Laporan Excel disimpan sebagai CSV yang dapat dibuka di Excel. Ekspor cadangan JSON tetap terpisah di Pengaturan.</div></div>';
+    var monthly=document.getElementById('ruMonthlyBusinessReport');
+    if(monthly)monthly.insertAdjacentHTML('beforebegin',html);else page.insertAdjacentHTML('afterbegin',html);
+    document.getElementById('ruFrDate').value=currentDate();
+    document.getElementById('ruFrMonth').value=currentDate().slice(0,7);
+    document.getElementById('ruFrYear').value=String(new Date().getFullYear());
+    document.getElementById('ruFrStart').value=currentDate().slice(0,7)+'-01';
+    document.getElementById('ruFrEnd').value=currentDate();
+  }
+  function periodRange(){
+    var mode=document.getElementById('ruFrPeriod').value,ref=document.getElementById('ruFrDate').value||currentDate(),start='',end='',label='';
+    if(mode==='daily'){start=end=ref;label='Harian: '+start;}
+    else if(mode==='weekly'){
+      var d=new Date(ref+'T12:00:00');var day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);
+      start=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      d.setDate(d.getDate()+6);end=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');label='Mingguan: '+start+' s.d. '+end;
+    }else if(mode==='monthly'){
+      var m=document.getElementById('ruFrMonth').value||ref.slice(0,7);start=m+'-01';
+      var d2=new Date(Number(m.slice(0,4)),Number(m.slice(5,7)),0,12);end=d2.getFullYear()+'-'+String(d2.getMonth()+1).padStart(2,'0')+'-'+String(d2.getDate()).padStart(2,'0');label='Bulanan: '+m;
+    }else if(mode==='yearly'){
+      var y=String(document.getElementById('ruFrYear').value||new Date().getFullYear());start=y+'-01-01';end=y+'-12-31';label='Tahunan: '+y;
+    }else{
+      start=document.getElementById('ruFrStart').value||currentDate();end=document.getElementById('ruFrEnd').value||currentDate();
+      if(start>end){var tmp=start;start=end;end=tmp;}label='Rentang khusus: '+start+' s.d. '+end;
+    }
+    return {mode:mode,start:start,end:end,label:label};
+  }
+  function showReportControls(){
+    var mode=document.getElementById('ruFrPeriod').value;
+    document.getElementById('ruFrDateWrap').style.display=(mode==='daily'||mode==='weekly')?'block':'none';
+    document.getElementById('ruFrMonthWrap').style.display=mode==='monthly'?'block':'none';
+    document.getElementById('ruFrYearWrap').style.display=mode==='yearly'?'block':'none';
+    document.getElementById('ruFrStartWrap').style.display=mode==='custom'?'block':'none';
+    document.getElementById('ruFrEndWrap').style.display=mode==='custom'?'block':'none';
+  }
+  function txInRange(t,r){
+    var d=dateKey(t);
+    if(d)return d>=r.start&&d<=r.end;
+    var m=monthKey(t);
+    if(!m)return false;
+    if(r.mode==='monthly')return m===r.start.slice(0,7);
+    if(r.mode==='yearly')return m.slice(0,4)===r.start.slice(0,4);
+    return false;
+  }
+  function getReportData(){
+    var r=periodRange(),biz=document.getElementById('ruFrBusiness').value;
+    var list=txs().filter(function(t){return txInRange(t,r)&&(!biz||t.businessId===biz);}).sort(function(a,b){return String(a.date||'').localeCompare(String(b.date||''));});
+    var inc=0,out=0,count=0;
+    list.forEach(function(t){if(t.type==='income'){inc+=Number(t.amount)||0;count++;}else if(t.type==='expense'){out+=Number(t.amount)||0;count++;}});
+    var adj=adjustments().filter(function(a){var d=String(a.date||a.createdAt||'').slice(0,10);return d>=r.start&&d<=r.end&&(!biz||!a.businessId||a.businessId===biz);});
+    return {range:r,business:biz,transactions:list,inc:inc,out:out,net:inc-out,count:count,adjustments:adj};
+  }
+  function summaryHtml(d){
+    return '<div class="ru-fr-metric"><small>Pemasukan</small><strong style="color:#0c9b77">'+rupiah(d.inc)+'</strong></div><div class="ru-fr-metric"><small>Pengeluaran</small><strong style="color:#d65c4b">'+rupiah(d.out)+'</strong></div><div class="ru-fr-metric"><small>Arus kas bersih</small><strong style="color:'+(d.net<0?'#d65c4b':'#087f5b')+'">'+rupiah(d.net)+'</strong></div><div class="ru-fr-metric"><small>Jumlah transaksi</small><strong>'+d.count+'</strong></div>';
+  }
+  function periodSeries(d){
+    var days=[],start=new Date(d.range.start+'T12:00:00'),end=new Date(d.range.end+'T12:00:00'),span=Math.round((end-start)/86400000)+1;
+    var unit=(d.range.mode==='yearly'||span>62)?'month':(span>14?'week':'day');
+    var map={};
+    for(var i=0;i<span;i++){
+      var dt=new Date(start);dt.setDate(start.getDate()+i);
+      var key=unit==='month'?dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'):unit==='week'?String(Math.floor(i/7)):dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      if(!map[key])map[key]={key:key,label:unit==='month'?dt.toLocaleDateString('id-ID',{month:'short'}):unit==='week'?'M'+(Math.floor(i/7)+1):String(dt.getDate()),inc:0,out:0};
+    }
+    d.transactions.forEach(function(t){var date=dateKey(t);if(!date)return;var dt=new Date(date+'T12:00:00'),key=unit==='month'?dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'):unit==='week'?String(Math.floor((dt-start)/86400000/7)):dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var b=map[key];if(!b)return;if(t.type==='income')b.inc+=Number(t.amount)||0;else if(t.type==='expense')b.out+=Number(t.amount)||0;});
+    return Object.keys(map).map(function(k){return map[k];}).slice(0,unit==='day'?31:12);
+  }
+  function renderReportChart(d){
+    var host=document.getElementById('ruFrChart'),series=periodSeries(d),max=1;series.forEach(function(x){max=Math.max(max,x.inc,x.out);});
+    host.innerHTML=series.map(function(x){return '<div class="ru-fr-chart-row"><div class="ru-fr-chart-label">'+esc(x.label)+'</div><div class="ru-fr-chart-bars"><div class="ru-fd-barline"><div class="ru-fr-chart-bar in" style="width:'+Math.max(x.inc?1:0,x.inc/max*100)+'%"></div><small>'+rupiah(x.inc)+'</small></div><div class="ru-fd-barline"><div class="ru-fr-chart-bar out" style="width:'+Math.max(x.out?1:0,x.out/max*100)+'%"></div><small>'+rupiah(x.out)+'</small></div></div></div>';}).join('')||'<div class="ru-fd-sub">Belum ada data untuk grafik.</div>';
+  }
+  function renderReportBusinesses(d){
+    var all=businesses().filter(function(b){return !d.business||b.id===d.business;}),out='';
+    all.forEach(function(b){
+      var list=d.transactions.filter(function(t){return t.businessId===b.id&&(t.type==='income'||t.type==='expense');}),inc=0,exp=0;
+      list.forEach(function(t){if(t.type==='income')inc+=Number(t.amount)||0;else exp+=Number(t.amount)||0;});
+      out+='<div class="ru-fr-business"><div class="ru-fr-business-head"><strong>'+esc(b.name)+'</strong><span style="color:'+(inc-exp<0?'#d65c4b':'#087f5b')+'">'+rupiah(inc-exp)+'</span></div><div class="ru-fd-sub" style="margin-top:6px">Pemasukan '+rupiah(inc)+' · Pengeluaran '+rupiah(exp)+' · '+list.length+' transaksi</div></div>';
+    });
+    if(!d.business){
+      var general=d.transactions.filter(function(t){return !t.businessId&&(t.type==='income'||t.type==='expense');}),gi=0,go=0;
+      general.forEach(function(t){if(t.type==='income')gi+=Number(t.amount)||0;else go+=Number(t.amount)||0;});
+      if(general.length)out+='<div class="ru-fr-business"><div class="ru-fr-business-head"><strong>Operasional umum</strong><span>'+rupiah(gi-go)+'</span></div><div class="ru-fd-sub" style="margin-top:6px">Pemasukan '+rupiah(gi)+' · Pengeluaran '+rupiah(go)+' · '+general.length+' transaksi</div></div>';
+    }
+    document.getElementById('ruFrBusinesses').innerHTML=out||'<div class="ru-fd-sub">Belum ada data usaha untuk periode ini.</div>';
+  }
+  function renderReportTransactions(d){
+    var arr=d.transactions.slice().reverse().slice(0,50),host=document.getElementById('ruFrTransactions');
+    host.innerHTML=arr.map(function(t){var v=Number(t.amount)||0,sign=t.type==='income'?'+':t.type==='expense'?'−':'',color=t.type==='income'?'#087f5b':t.type==='expense'?'#c24133':'var(--muted)';return '<div class="ru-fr-tx"><div style="min-width:0"><strong>'+esc(t.note||typeName(t.type))+'</strong><small>'+esc(t.date||monthKey(t)||'Tanggal tidak tercantum')+' · '+esc(typeName(t.type))+' · '+esc(businessName(t.businessId))+' · '+esc(walletName(t.accountId))+'</small></div><strong style="color:'+color+'">'+sign+rupiah(v)+'</strong></div>';}).join('')||'<div class="ru-fd-sub">Tidak ada transaksi pada periode ini.</div>';
+    if(d.transactions.length>50)host.insertAdjacentHTML('beforeend','<div class="ru-fd-sub">Menampilkan 50 transaksi terakhir dari '+d.transactions.length+' transaksi. Ekspor berisi seluruh transaksi yang terfilter.</div>');
+  }
+  function fillBusinessSelect(){
+    var sel=document.getElementById('ruFrBusiness');if(!sel)return;var old=sel.value;
+    sel.innerHTML='<option value="">Semua usaha</option>'+businesses().map(function(b){return '<option value="'+esc(b.id)+'">'+esc(b.name)+'</option>';}).join('');
+    if([].some.call(sel.options,function(o){return o.value===old;}))sel.value=old;
+  }
+  function renderFinanceReport(){
+    if(!document.getElementById('ruAdvancedReport'))ensureReport();
+    var period=document.getElementById('ruFrPeriod');if(!period)return;
+    showReportControls();fillBusinessSelect();
+    var d=getReportData();
+    document.getElementById('ruFrRangeText').textContent=d.range.label;
+    document.getElementById('ruFrResults').innerHTML=summaryHtml(d);
+    renderReportChart(d);renderReportBusinesses(d);renderReportTransactions(d);
+  }
+  function csvEscape(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"';}
+  function csvExport(){
+    var d=getReportData(),rows=[];
+    rows.push(['LAPORAN KEUANGAN KASUSAHA',d.range.label],['Usaha',d.business?businessName(d.business):'Semua usaha'],[],['RINGKASAN'],['Pemasukan',d.inc],['Pengeluaran',d.out],['Arus kas bersih',d.net],['Jumlah transaksi',d.count],[],['LABA/RUGI KAS PER USAHA'],['Nama usaha','Pemasukan','Pengeluaran','Laba/rugi kas','Jumlah transaksi']);
+    businesses().filter(function(b){return !d.business||b.id===d.business;}).forEach(function(b){var ts=d.transactions.filter(function(t){return t.businessId===b.id&&(t.type==='income'||t.type==='expense');}),i=0,o=0;ts.forEach(function(t){if(t.type==='income')i+=Number(t.amount)||0;else o+=Number(t.amount)||0;});rows.push([b.name,i,o,i-o,ts.length]);});
+    rows.push([],['RINCIAN TRANSAKSI'],['Tanggal','Jenis','Usaha','Kategori','Dompet asal','Dompet tujuan','Nominal','Catatan']);
+    d.transactions.forEach(function(t){rows.push([t.date||monthKey(t),typeName(t.type),businessName(t.businessId),categoryName(t.categoryId),walletName(t.accountId),walletName(t.toAccountId),Number(t.amount)||0,t.note||'']);});
+    rows.push([],['PENYESUAIAN SALDO'],['Tanggal','Dompet','Selisih','Catatan']);
+    d.adjustments.forEach(function(a){rows.push([a.date||a.createdAt,walletName(a.accountId),Number(a.delta)||0,a.note||'']);});
+    return '\uFEFF'+rows.map(function(r){return r.map(csvEscape).join(',');}).join('\r\n');
+  }
+  function downloadFile(filename,mime,textData){
+    var bytes=new TextEncoder().encode(textData),binary='';
+    for(var i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+    var base64=btoa(binary);
+    if(window.AndroidDownloads&&typeof window.AndroidDownloads.saveFile==='function'){window.AndroidDownloads.saveFile(filename,mime,base64);return;}
+    var blob=new Blob([bytes],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},3000);
+  }
+  function exportReportCsv(){
+    try{var d=getReportData();downloadFile('KasUsaha-Laporan-'+d.range.start+'-sd-'+d.range.end+'.csv','text/csv;charset=utf-8',csvExport());if(typeof showToast==='function')showToast('Laporan untuk Excel disiapkan. Periksa folder Unduhan.');}
+    catch(e){alert('Ekspor Excel gagal: '+(e&&e.message||e));}
+  }
+  function ascii(v){return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/Rp/g,'Rp').replace(/[^\x20-\x7E]/g,' ');}
+  function pdfEscape(v){return ascii(v).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');}
+  function makePdf(lines){
+    var pages=[];for(var i=0;i<lines.length;i+=48)pages.push(lines.slice(i,i+48));if(!pages.length)pages=[['Laporan KasUsaha']];
+    var objs=[];
+    objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
+    var pageIds=[],next=4;
+    objs[3]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+    pages.forEach(function(linesPage){
+      var pageId=next++,contentId=next++;pageIds.push(pageId);
+      var commands=['BT','/F1 9 Tf','50 790 Td','12 TL'];
+      linesPage.forEach(function(line){commands.push('('+pdfEscape(line)+') Tj','T*');});
+      commands.push('ET');
+      var stream=commands.join('\n');
+      objs[contentId]='<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream';
+      objs[pageId]='<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents '+contentId+' 0 R >>';
+    });
+    objs[2]='<< /Type /Pages /Count '+pageIds.length+' /Kids ['+pageIds.map(function(id){return id+' 0 R';}).join(' ')+'] >>';
+    var pdf='%PDF-1.4\n',offsets=[0];
+    for(var j=1;j<objs.length;j++){if(!objs[j])continue;offsets[j]=pdf.length;pdf+=j+' 0 obj\n'+objs[j]+'\nendobj\n';}
+    var xref=pdf.length;pdf+='xref\n0 '+objs.length+'\n0000000000 65535 f \n';
+    for(var k=1;k<objs.length;k++)pdf+=(offsets[k]||0).toString().padStart(10,'0')+' 00000 n \n';
+    pdf+='trailer\n<< /Size '+objs.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF';
+    return pdf;
+  }
+  function exportReportPdf(){
+    try{
+      var d=getReportData(),lines=['LAPORAN KEUANGAN KASUSAHA',d.range.label,'Usaha: '+(d.business?businessName(d.business):'Semua usaha'),'','RINGKASAN','Pemasukan: '+rupiah(d.inc),'Pengeluaran: '+rupiah(d.out),'Arus kas bersih: '+rupiah(d.net),'Jumlah transaksi: '+d.count,'','LABA/RUGI KAS PER USAHA'];
+      businesses().filter(function(b){return !d.business||b.id===d.business;}).forEach(function(b){var ts=d.transactions.filter(function(t){return t.businessId===b.id&&(t.type==='income'||t.type==='expense');}),i=0,o=0;ts.forEach(function(t){if(t.type==='income')i+=Number(t.amount)||0;else o+=Number(t.amount)||0;});lines.push(b.name+' | masuk '+rupiah(i)+' | keluar '+rupiah(o)+' | net '+rupiah(i-o));});
+      lines.push('','RINCIAN TRANSAKSI (semua yang terfilter)');
+      d.transactions.forEach(function(t){lines.push((t.date||monthKey(t)||'-')+' | '+typeName(t.type)+' | '+businessName(t.businessId)+' | '+walletName(t.accountId)+' | '+rupiah(t.amount)+' | '+(t.note||''));});
+      lines.push('','PENYESUAIAN SALDO');d.adjustments.forEach(function(a){lines.push((a.date||a.createdAt||'-')+' | '+walletName(a.accountId)+' | '+rupiah(a.delta)+' | '+(a.note||''));});
+      lines.push('','Catatan: laba/rugi kas dihitung dari transaksi pemasukan dikurangi pengeluaran. Transfer antar dompet tidak dihitung.');
+      downloadFile('KasUsaha-Laporan-'+d.range.start+'-sd-'+d.range.end+'.pdf','application/pdf',makePdf(lines));
+      if(typeof showToast==='function')showToast('Laporan PDF disiapkan. Periksa folder Unduhan.');
+    }catch(e){alert('Ekspor PDF gagal: '+(e&&e.message||e));}
+  }
+
+  document.addEventListener('click',function(e){
+    var open=e.target&&e.target.closest?e.target.closest('#ruOpenAllWallets'):null;
+    var totalCard=e.target&&e.target.closest?e.target.closest('#page-dashboard .cards .card'):null;
+    if(open){e.preventDefault();document.getElementById('ruAllWallets').style.display='block';renderWalletView();return;}
+    if(totalCard&&document.getElementById('page-dashboard')&&document.getElementById('page-dashboard').contains(totalCard)){
+      var label=totalCard.textContent||'';
+      var allCards=[].slice.call(document.querySelectorAll('#page-dashboard .cards .card'));
+      var likely=allCards.find(function(c){return /total\s+saldo|saldo\s+total|total\s+balance|total\s+seluruh\s+saldo/i.test(c.textContent||'');})||allCards[3];
+      if(likely===totalCard){e.preventDefault();e.stopImmediatePropagation();document.getElementById('ruAllWallets').style.display='block';renderWalletView();return;}
+    }
+    if(e.target&&e.target.closest&&e.target.closest('#ruCloseAllWallets')){document.getElementById('ruAllWallets').style.display='none';return;}
+    var detail=e.target&&e.target.closest?e.target.closest('[data-ru-wallet-detail]'):null;if(detail){renderWalletTransactions(detail.getAttribute('data-ru-wallet-detail'));return;}
+    if(e.target&&e.target.closest&&e.target.closest('#ruCloseWalletTx')){var p=document.getElementById('ruWalletTransactionsPanel');if(p)p.style.display='none';walletViewId=null;return;}
+    if(e.target&&e.target.closest&&e.target.closest('#ruOpenReconcile')){openReconcile();return;}
+    if(e.target&&e.target.closest&&e.target.closest('#ruRecClose,#ruRecCancel')){document.getElementById('ruReconcileModal').style.display='none';return;}
+    if(e.target&&e.target.closest&&e.target.closest('#ruFrExportExcel')){exportReportCsv();return;}
+    if(e.target&&e.target.closest&&e.target.closest('#ruFrExportPdf')){exportReportPdf();return;}
+  },true);
+  document.addEventListener('change',function(e){
+    if(e.target&&e.target.id==='ruFrPeriod'){showReportControls();renderFinanceReport();}
+    if(e.target&&['ruFrDate','ruFrMonth','ruFrYear','ruFrStart','ruFrEnd','ruFrBusiness'].indexOf(e.target.id)>=0)renderFinanceReport();
+    if(e.target&&e.target.id==='ruRecWallet')updateReconcile();
+  });
+  document.addEventListener('input',function(e){if(e.target&&e.target.id==='ruRecActual')updateReconcile();});
+  document.addEventListener('submit',function(e){
+    if(!e.target||e.target.id!=='ruReconcileForm')return;
+    e.preventDefault();e.stopImmediatePropagation();
+    var id=document.getElementById('ruRecWallet').value,actual=Number(document.getElementById('ruRecActual').value),a=wallets().find(function(x){return x.id===id;});
+    if(!a||document.getElementById('ruRecActual').value===''||!Number.isFinite(actual)){alert('Pilih dompet dan isi saldo aktual yang valid.');return;}
+    var system=walletBalance(a),delta=Math.round(actual)-Math.round(system),note=document.getElementById('ruRecNote').value.trim();
+    if(!confirm('Saldo sistem '+rupiah(system)+'\nSaldo aktual '+rupiah(Math.round(actual))+'\nSelisih '+(delta>0?'+':'')+rupiah(delta)+'\n\nSimpan penyesuaian saldo ini?'))return;
+    ensureAdjustments().push({id:'adj-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),accountId:id,delta:delta,date:currentDate(),createdAt:new Date().toISOString(),note:note||'Rekonsiliasi saldo'});
+    document.getElementById('ruReconcileModal').style.display='none';
+    saveApp();
+    alert('Penyesuaian saldo tersimpan. Riwayat tersedia pada halaman Semua Saldo.');
+  },true);
+  function init(){
+    ensureDashboard();ensureWalletView();ensureReconcileModal();ensureReport();
+    var btn=document.getElementById('ruOpenAllWallets');if(btn)btn.onclick=function(){document.getElementById('ruAllWallets').style.display='block';renderWalletView();};
+    document.getElementById('ruFrExportExcel').onclick=exportReportCsv;
+    document.getElementById('ruFrExportPdf').onclick=exportReportPdf;
+    document.getElementById('ruRecActual').addEventListener('input',updateReconcile);
+    document.getElementById('ruRecWallet').addEventListener('change',updateReconcile);
+    refreshDashboard();renderWalletView();renderFinanceReport();
+  }
+  var priorRender=window.render;
+  if(typeof priorRender==='function'){
+    window.render=function(){var result=priorRender.apply(this,arguments);try{refreshDashboard();renderWalletView();renderFinanceReport();}catch(e){}return result;};
+  }
+  document.addEventListener('click',function(e){
+    var nav=e.target&&e.target.closest?e.target.closest('[data-page="dashboard"],[data-page="reports"]'):null;
+    if(nav)setTimeout(function(){refreshDashboard();renderFinanceReport();},100);
+  },true);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
+"""
+    if "</body>" not in s:
+        raise SystemExit("Tidak menemukan penutup body untuk peningkatan laporan dan saldo")
+    s = s.replace("</body>", finance_ui_js + "\n</body>", 1)
+    p.write_text(s)
+
