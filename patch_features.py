@@ -1978,26 +1978,10 @@ if "KasUsaha financial dashboard and reconciliation v1" not in s:
     if old_account_used not in s:
         raise SystemExit("Tidak menemukan pemeriksaan penggunaan dompet")
     s = s.replace(old_account_used, new_account_used, 1)
-    old_picker_balance = """     transactions().forEach(function(t){
-       var v=Number(t.amount)||0;
-       if(t.accountId===a.id){if(t.type==='income')n+=v;else if(t.type==='expense'||t.type==='transfer')n-=v;}
-       if(t.type==='transfer'&&t.toAccountId===a.id)n+=v;
-     });
-     return n;
-   }
-   function ensurePicker(){"""
-    new_picker_balance = """     transactions().forEach(function(t){
-       var v=Number(t.amount)||0;
-       if(t.accountId===a.id){if(t.type==='income')n+=v;else if(t.type==='expense'||t.type==='transfer')n-=v;}
-       if(t.type==='transfer'&&t.toAccountId===a.id)n+=v;
-     });
-     (((st().walletAdjustments)||[])).forEach(function(x){if(x.accountId===a.id)n+=Number(x.delta)||0;});
-     return n;
-   }
-   function ensurePicker(){"""
-    if old_picker_balance not in s:
-        raise SystemExit("Tidak menemukan perhitungan saldo pada pemilih dompet")
-    s = s.replace(old_picker_balance, new_picker_balance, 1)
+    balance_match = re.search(r"(function balance\\(a\\)\\{[\\s\\S]*?)(\\n\\s*return n;\\s*\\})", s)
+    if not balance_match:
+        raise SystemExit("Tidak menemukan fungsi saldo pada pemilih dompet")
+    s = s[:balance_match.start(2)] + "\\n     (((st().walletAdjustments)||[])).forEach(function(x){if(x.accountId===a.id)n+=Number(x.delta)||0;});" + s[balance_match.start(2):]
 
     finance_ui_js = r"""
 <script>
