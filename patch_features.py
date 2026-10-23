@@ -1548,3 +1548,96 @@ if "RuangUsaha finance fixes v1" not in s:
 """
     s = s.replace("</body>", finance_js + "\n</body>", 1)
     p.write_text(s)
+
+ 
+# KasUsaha category modal guard v2: capture the add button and save form reliably.
+# This block is intentionally outside the report-feature guard so it is applied on every build.
+s = p.read_text()
+if "KasUsaha category modal guard v2" not in s:
+    category_guard_js = r"""
+<script>
+/* KasUsaha category modal guard v2 */
+(function(){
+  if(window.__ruCategoryModalGuardV2) return;
+  window.__ruCategoryModalGuardV2 = true;
+
+  document.addEventListener('click', function(e){
+    var button = e.target && e.target.closest ? e.target.closest('#businessCategorySettings button') : null;
+    if(!button) return;
+    var label = String(button.innerText || button.textContent || '').replace(/\s+/g,' ').trim();
+    if(!/kategori/i.test(label) || !/[＋+]/.test(label)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    try {
+      if(typeof window.openBusinessCategory !== 'function') throw new Error('Fungsi tambah kategori belum siap. Tutup lalu buka kembali halaman Usaha.');
+      window.openBusinessCategory();
+      var modal = document.getElementById('bizCategoryModal');
+      if(modal){
+        modal.style.setProperty('display','flex','important');
+        modal.style.setProperty('z-index','10000','important');
+        var inner = modal.querySelector('.modal');
+        if(inner) inner.style.setProperty('z-index','10001','important');
+      }
+    } catch(err) {
+      alert('Tidak dapat membuka form kategori: ' + (err && err.message ? err.message : String(err)));
+    }
+  }, true);
+
+  document.addEventListener('submit', function(e){
+    var form = e.target;
+    if(!form || form.id !== 'bizCategoryForm') return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    try {
+      var st = (typeof state !== 'undefined' && state) ? state : window.state;
+      if(!st) throw new Error('Data aplikasi belum siap. Tutup lalu buka kembali halaman Usaha.');
+      var idEl = document.getElementById('bizCategoryId');
+      var businessEl = document.getElementById('bizCategoryBusiness');
+      var typeEl = document.getElementById('bizCategoryType');
+      var nameEl = document.getElementById('bizCategoryName');
+      var id = idEl ? idEl.value : '';
+      var businessId = businessEl ? businessEl.value : '';
+      var type = typeEl ? typeEl.value : 'expense';
+      var name = nameEl ? nameEl.value.trim() : '';
+      if(!businessId || !name) throw new Error('Pilih usaha dan isi nama kategori.');
+      st.categories = Array.isArray(st.categories) ? st.categories : [];
+      if(st.categories.some(function(c){
+        return c.id !== id && c.businessId === businessId && c.type === type &&
+          String(c.name || '').trim().toLocaleLowerCase() === name.toLocaleLowerCase();
+      })) throw new Error('Kategori dengan nama tersebut sudah ada di usaha ini.');
+
+      if(id){
+        var existing = st.categories.find(function(c){ return c.id === id; });
+        if(!existing) throw new Error('Kategori yang akan diedit tidak ditemukan.');
+        Object.assign(existing, {businessId:businessId, type:type, name:name});
+      } else {
+        st.categories.push({
+          id:'cat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8),
+          businessId:businessId, type:type, name:name
+        });
+      }
+
+      if(typeof save === 'function') save();
+      else if(typeof window.save === 'function') window.save();
+      else throw new Error('Penyimpanan data tidak ditemukan.');
+
+      if(typeof window.closeModal === 'function') window.closeModal('bizCategoryModal');
+      else {
+        var modal = document.getElementById('bizCategoryModal');
+        if(modal) modal.style.display = 'none';
+      }
+      if(typeof window.renderBusinessCategorySettings === 'function') window.renderBusinessCategorySettings();
+      if(typeof window.updateTxForm === 'function') window.updateTxForm();
+      if(typeof window.showToast === 'function') window.showToast('Kategori usaha berhasil disimpan.');
+      else alert('Kategori usaha berhasil disimpan.');
+    } catch(err) {
+      alert('Gagal menyimpan kategori: ' + (err && err.message ? err.message : String(err)));
+    }
+  }, true);
+})();
+</script>
+"""
+    if "</body>" not in s:
+        raise SystemExit("Tidak menemukan penutup body untuk perbaikan kategori")
+    s = s.replace("</body>", category_guard_js + "\n</body>", 1)
+    p.write_text(s)
