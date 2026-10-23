@@ -1596,57 +1596,7 @@ if "KasUsaha category modal guard v2" not in s:
     }
   }, true);
 
-  document.addEventListener('submit', function(e){
-    var form = e.target;
-    if(!form || form.id !== 'bizCategoryForm') return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    try {
-      var st = (typeof state !== 'undefined' && state) ? state : window.state;
-      if(!st) throw new Error('Data aplikasi belum siap. Tutup lalu buka kembali halaman Usaha.');
-      var idEl = document.getElementById('bizCategoryId');
-      var businessEl = document.getElementById('bizCategoryBusiness');
-      var typeEl = document.getElementById('bizCategoryType');
-      var nameEl = document.getElementById('bizCategoryName');
-      var id = idEl ? idEl.value : '';
-      var businessId = businessEl ? businessEl.value : '';
-      var type = typeEl ? typeEl.value : 'expense';
-      var name = nameEl ? nameEl.value.trim() : '';
-      if(!businessId || !name) throw new Error('Pilih usaha dan isi nama kategori.');
-      st.categories = Array.isArray(st.categories) ? st.categories : [];
-      if(st.categories.some(function(c){
-        return c.id !== id && c.businessId === businessId && c.type === type &&
-          String(c.name || '').trim().toLocaleLowerCase() === name.toLocaleLowerCase();
-      })) throw new Error('Kategori dengan nama tersebut sudah ada di usaha ini.');
-
-      if(id){
-        var existing = st.categories.find(function(c){ return c.id === id; });
-        if(!existing) throw new Error('Kategori yang akan diedit tidak ditemukan.');
-        Object.assign(existing, {businessId:businessId, type:type, name:name});
-      } else {
-        st.categories.push({
-          id:'cat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8),
-          businessId:businessId, type:type, name:name
-        });
-      }
-
-      if(typeof save === 'function') save();
-      else if(typeof window.save === 'function') window.save();
-      else throw new Error('Penyimpanan data tidak ditemukan.');
-
-      if(typeof window.closeModal === 'function') window.closeModal('bizCategoryModal');
-      else {
-        var modal = document.getElementById('bizCategoryModal');
-        if(modal) modal.style.display = 'none';
-      }
-      if(typeof window.renderBusinessCategorySettings === 'function') window.renderBusinessCategorySettings();
-      if(typeof window.updateTxForm === 'function') window.updateTxForm();
-      if(typeof window.showToast === 'function') window.showToast('Kategori usaha berhasil disimpan.');
-      else alert('Kategori usaha berhasil disimpan.');
-    } catch(err) {
-      alert('Gagal menyimpan kategori: ' + (err && err.message ? err.message : String(err)));
-    }
-  }, true);
+  /* Saving is handled by the existing bizCategoryForm submit listener in the finance patch. */
 })();
 </script>
 """
