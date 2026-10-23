@@ -1978,10 +1978,10 @@ if "KasUsaha financial dashboard and reconciliation v1" not in s:
     if old_account_used not in s:
         raise SystemExit("Tidak menemukan pemeriksaan penggunaan dompet")
     s = s.replace(old_account_used, new_account_used, 1)
-    balance_match = re.search(r"(function balance\\(a\\)\\{[\\s\\S]*?)(\\n\\s*return n;\\s*\\})", s)
+    balance_match = re.search(r"(function balance\(a\)\{[\s\S]*?)(\n\s*return n;\s*\})", s)
     if not balance_match:
         raise SystemExit("Tidak menemukan fungsi saldo pada pemilih dompet")
-    s = s[:balance_match.start(2)] + "\\n     (((st().walletAdjustments)||[])).forEach(function(x){if(x.accountId===a.id)n+=Number(x.delta)||0;});" + s[balance_match.start(2):]
+    s = s[:balance_match.start(2)] + "\n     (((st().walletAdjustments)||[])).forEach(function(x){if(x.accountId===a.id)n+=Number(x.delta)||0;});" + s[balance_match.start(2):]
 
     finance_ui_js = r"""
 <script>
