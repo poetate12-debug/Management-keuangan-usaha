@@ -1800,3 +1800,139 @@ if "KasUsaha multi-wallet manager v1" not in s:
         raise SystemExit("Tidak menemukan penutup body untuk multi-wallet manager")
     s = s.replace("</body>", wallet_js + "\n</body>", 1)
     p.write_text(s)
+
+
+# KasUsaha transaction wallet-first flow v1.
+# For income/expense/transfer, choose transaction type -> wallet -> (business if applicable) -> transaction form.
+s = p.read_text()
+if "KasUsaha transaction wallet-first flow v1" not in s:
+    wallet_first_js = r"""
+<script>
+/* KasUsaha transaction wallet-first flow v1 */
+(function(){
+  if(window.__ruWalletFirstFlowV1)return;
+  window.__ruWalletFirstFlowV1=true;
+  var pendingType='income', pendingWallet='';
+  function st(){return (typeof state!=='undefined'&&state)?state:(window.state||{});}
+  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function money(v){return typeof window.money==='function'?window.money(Number(v)||0):'Rp'+(Number(v)||0).toLocaleString('id-ID');}
+  function accounts(){return Array.isArray(st().accounts)?st().accounts:[];}
+  function transactions(){return Array.isArray(st().transactions)?st().transactions:[];}
+  function balance(a){
+    var n=Number(a.opening!==undefined?a.opening:(a.balance||0))||0;
+    transactions().forEach(function(t){
+      var v=Number(t.amount)||0;
+      if(t.accountId===a.id){if(t.type==='income')n+=v;else if(t.type==='expense'||t.type==='transfer')n-=v;}
+      if(t.type==='transfer'&&t.toAccountId===a.id)n+=v;
+    });
+    return n;
+  }
+  function ensurePicker(){
+    var el=document.getElementById('ruTxWalletPicker');
+    if(el)return el;
+    el=document.createElement('div');el.id='ruTxWalletPicker';
+    el.style.cssText='display:none;position:fixed;inset:0;z-index:16000;background:rgba(15,23,42,.55);align-items:flex-end;justify-content:center;padding:0';
+    el.innerHTML='<div style="background:#fff;color:#172033;width:100%;max-width:560px;max-height:88dvh;overflow:auto;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));box-sizing:border-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><h2 id="ruTxWalletTitle" style="margin:0 0 5px;font-size:21px">Pilih dompet</h2><div id="ruTxWalletSubtitle" style="font-size:13px;color:#687386">Pilih dompet yang digunakan.</div></div><button type="button" id="ruTxWalletClose">✕</button></div><div id="ruTxWalletOptions" style="display:grid;gap:9px;margin-top:16px"></div><button type="button" id="ruTxWalletManage" style="width:100%;margin-top:12px">＋ Kelola dompet</button></div>';
+    document.body.appendChild(el);
+    document.getElementById('ruTxWalletClose').onclick=function(){el.style.display='none';};
+    document.getElementById('ruTxWalletManage').onclick=function(){
+      el.style.display='none';
+      var settings=document.querySelector('[data-page="settings"]');
+      if(settings)settings.click();
+      setTimeout(function(){var add=document.getElementById('ruWalletAdd');if(add)add.click();else alert('Buka Pengaturan untuk mengelola dompet.');},100);
+    };
+    return el;
+  }
+  function openWalletPicker(type){
+    pendingType=type;
+    pendingWallet='';
+    var el=ensurePicker(),opts=document.getElementById('ruTxWalletOptions');
+    var names={income:'Pemasukan',expense:'Pengeluaran',transfer:'Transfer antar dompet'};
+    document.getElementById('ruTxWalletTitle').textContent='Pilih dompet';
+    document.getElementById('ruTxWalletSubtitle').textContent=type==='transfer'?'Pilih dompet asal transfer.':'Pilih dompet untuk transaksi '+names[type].toLowerCase()+'.';
+    var list=accounts();
+    opts.innerHTML=list.map(function(a){
+      var kind=({cash:'Tunai / Kas',bank:'Rekening bank',ewallet:'E-wallet',other:'Lainnya'})[a.type]||'Dompet';
+      return '<button type="button" data-ru-wallet="'+esc(a.id)+'" style="display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;background:#fff;border:1px solid #dfe5ee;border-radius:14px;padding:14px;color:#172033"><span style="min-width:0"><strong style="display:block">'+esc(a.name||'Dompet')+'</strong><small style="display:block;color:#687386;margin-top:4px">'+kind+'</small></span><strong style="white-space:nowrap">'+money(balance(a))+'</strong></button>';
+    }).join('')||'<div style="padding:14px;color:#687386">Belum ada dompet. Tambahkan dompet terlebih dahulu.</div>';
+    el.style.display='flex';
+  }
+  function showBusinessPicker(type,walletId){
+    pendingType=type;pendingWallet=walletId;
+    if(typeof window.renderBusinessPicker==='function')window.renderBusinessPicker();
+    var modal=document.getElementById('businessPickerModal');
+    if(modal){
+      var heading=modal.querySelector('h2');
+      if(heading)heading.textContent='Pilih usaha';
+      var desc=modal.querySelector('.desc');
+      if(desc)desc.textContent='Pilih usaha untuk transaksi '+(type==='income'?'pemasukan':'pengeluaran')+'.';
+      modal.style.display='flex';
+    }else openForm(type,walletId,'');
+  }
+  function openForm(type,walletId,businessId){
+    if(typeof window.openTransactionForm==='function')window.openTransactionForm('',businessId||'');
+    var typeEl=document.getElementById('fType'),accountEl=document.getElementById('fAccount');
+    if(typeEl){typeEl.value=type;if(typeof window.updateTxForm==='function')window.updateTxForm();}
+    if(accountEl)accountEl.value=walletId||'';
+    var businessEl=document.getElementById('fBusiness');
+    if(businessEl)businessEl.value=businessId||'';
+    var toAccount=document.getElementById('fToAccount');
+    if(type==='transfer'&&toAccount)toAccount.value='';
+    if(typeof window.updateTxForm==='function')window.updateTxForm();
+    var modal=document.getElementById('txModal');
+    if(modal)modal.style.display='flex';
+  }
+  document.addEventListener('click',function(e){
+    var btn=e.target&&e.target.closest?e.target.closest('[data-ru-wallet]'):null;
+    if(!btn)return;
+    e.preventDefault();
+    var id=btn.getAttribute('data-ru-wallet'),type=pendingType;
+    document.getElementById('ruTxWalletPicker').style.display='none';
+    if(type==='transfer'){openForm(type,id,'');return;}
+    showBusinessPicker(type,id);
+  },true);
+  var originalStart=window.startTypedTransaction;
+  window.startTypedTransaction=function(type){
+    if(['income','expense','transfer'].indexOf(type)<0){if(typeof originalStart==='function')originalStart(type);return;}
+    var typeModal=document.getElementById('txTypePicker');
+    if(typeModal)typeModal.style.display='none';
+    openWalletPicker(type);
+  };
+  var originalChoose=window.chooseBusiness;
+  window.chooseBusiness=function(id){
+    var modal=document.getElementById('businessPickerModal');
+    if(modal)modal.style.display='none';
+    var type=pendingType,walletId=pendingWallet;
+    if(type==='income'||type==='expense'){
+      openForm(type,walletId,id==='__general__'?'':id);
+      return;
+    }
+    if(typeof originalChoose==='function')originalChoose(id);
+  };
+  var originalOpenForBusiness=window.openTransactionForBusiness;
+  window.openTransactionForBusiness=function(type,id){
+    openWalletPicker(type);
+    pendingBusiness=id||'';
+  };
+  var originalOpen=window.openTransaction;
+  window.openTransaction=function(id){
+    if(id&&typeof window.openTransactionForm==='function'){
+      var t=(st().transactions||[]).find(function(x){return x.id===id;});
+      window.openTransactionForm(id,t?t.businessId||'':'');
+      return;
+    }
+    var picker=document.getElementById('txTypePicker');
+    if(picker)picker.style.display='flex';
+    else if(typeof originalOpen==='function')originalOpen(id);
+  };
+  var originalRender=window.render;
+  if(typeof originalRender==='function'){
+    window.render=function(){originalRender.apply(this,arguments);};
+  }
+})();
+</script>
+"""
+    if "</body>" not in s:
+        raise SystemExit("Tidak menemukan penutup body untuk alur pilih dompet")
+    s=s.replace("</body>",wallet_first_js+"\n</body>",1)
+    p.write_text(s)
