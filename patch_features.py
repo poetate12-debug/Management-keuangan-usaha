@@ -1604,3 +1604,199 @@ if "KasUsaha category modal guard v2" not in s:
         raise SystemExit("Tidak menemukan penutup body untuk perbaikan kategori")
     s = s.replace("</body>", category_guard_js + "\n</body>", 1)
     p.write_text(s)
+
+
+# KasUsaha multi-wallet manager v1.
+# Expose wallet/account CRUD in Settings and guarantee transfer semantics are wallet-to-wallet.
+s = p.read_text()
+if "KasUsaha multi-wallet manager v1" not in s:
+    s = re.sub(r"Transfer\s+antar\s+usaha", "Transfer antar dompet", s, flags=re.I)
+
+    wallet_js = r"""
+<style>
+/* KasUsaha multi-wallet manager v1 */
+#ruWalletManager{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+#ruWalletManager .ru-wallet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#ruWalletManager .ru-wallet-head h2{margin:0}
+#ruWalletManager .ru-wallet-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid var(--line);padding:13px 0}
+#ruWalletManager .ru-wallet-row:first-child{border-top:0}
+#ruWalletManager .ru-wallet-meta{font-size:12px;color:var(--muted);margin-top:4px}
+#ruWalletManager .ru-wallet-balance{font-size:14px;font-weight:800;margin-top:5px}
+#ruWalletManager .ru-wallet-actions{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+#ruWalletModal{display:none;position:fixed!important;inset:0!important;z-index:15000!important;align-items:center!important;justify-content:center!important;background:rgba(20,25,45,.52);padding:18px}
+#ruWalletModal .ru-wallet-dialog{background:#fff;color:var(--ink);border-radius:18px;padding:18px;width:min(100%,480px);max-height:85dvh;overflow:auto;box-shadow:0 18px 60px #0003}
+#ruWalletModal .ru-wallet-dialog h2{margin-top:0}
+#ruWalletModal .ru-wallet-dialog .field{margin:12px 0}
+#ruWalletModal .ru-wallet-dialog input,#ruWalletModal .ru-wallet-dialog select{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:inherit}
+#ruWalletModal .ru-wallet-form-actions{display:flex;gap:9px;position:sticky;bottom:-18px;background:#fff;padding:14px 0 2px}
+#ruWalletModal .ru-wallet-form-actions button{flex:1}
+@media(max-width:420px){#ruWalletManager .ru-wallet-row{align-items:flex-start;flex-direction:column}#ruWalletManager .ru-wallet-actions{width:100%}#ruWalletManager .ru-wallet-actions button{flex:1}}
+</style>
+<script>
+/* KasUsaha multi-wallet manager v1 */
+(function(){
+  if(window.__ruMultiWalletManagerV1) return;
+  window.__ruMultiWalletManagerV1 = true;
+  function appState(){ return (typeof state !== 'undefined' && state) ? state : (window.state || {}); }
+  function escWallet(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function rupiah(v){
+    var n=Number(v)||0;
+    if(typeof window.money==='function') return window.money(n);
+    return 'Rp'+n.toLocaleString('id-ID');
+  }
+  function accounts(){var st=appState();return Array.isArray(st.accounts)?st.accounts:[];}
+  function transactions(){var st=appState();return Array.isArray(st.transactions)?st.transactions:[];}
+  function typeLabel(type){
+    return ({cash:'Tunai',bank:'Bank',ewallet:'E-wallet',other:'Lainnya'})[type] || String(type||'Dompet');
+  }
+  function walletBalance(account){
+    var balance=Number(account.opening!==undefined?account.opening:(account.balance!==undefined?account.balance:0))||0;
+    transactions().forEach(function(t){
+      var amount=Number(t.amount)||0;
+      if(t.accountId===account.id){
+        if(t.type==='income') balance+=amount;
+        else if(t.type==='expense'||t.type==='transfer') balance-=amount;
+      }
+      if(t.type==='transfer'&&t.toAccountId===account.id) balance+=amount;
+    });
+    return balance;
+  }
+  function accountUsed(id){
+    return transactions().some(function(t){return t.accountId===id||t.toAccountId===id;});
+  }
+  function ensureUI(){
+    var settings=document.getElementById('page-settings');
+    if(!settings) return false;
+    var panel=document.getElementById('ruWalletManager');
+    if(!panel){
+      panel=document.createElement('section');
+      panel.id='ruWalletManager';
+      panel.innerHTML='<div class="ru-wallet-head"><div><h2>Dompet &amp; Rekening</h2><div class="desc">Kelola beberapa dompet, rekening bank, dan e-wallet. Pilih dompet saat mencatat transaksi atau transfer.</div></div><button type="button" class="primary" id="ruWalletAdd">＋ Tambah dompet</button></div><div id="ruWalletList" style="margin-top:10px"></div>';
+      var top=settings.querySelector('.top');
+      if(top&&top.parentElement===settings) top.insertAdjacentElement('afterend',panel);
+      else settings.insertBefore(panel,settings.firstChild);
+    }
+    var modal=document.getElementById('ruWalletModal');
+    if(!modal){
+      modal=document.createElement('div');
+      modal.id='ruWalletModal';
+      modal.innerHTML='<div class="ru-wallet-dialog"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h2 id="ruWalletModalTitle">Tambah dompet</h2><button type="button" id="ruWalletClose" aria-label="Tutup">✕</button></div><form id="ruWalletForm"><input type="hidden" id="ruWalletId"><div class="field"><label for="ruWalletName">Nama dompet</label><input id="ruWalletName" required maxlength="70" placeholder="Contoh: Kas Tunai, BCA, DANA"></div><div class="field"><label for="ruWalletType">Jenis dompet</label><select id="ruWalletType"><option value="cash">Tunai / Kas</option><option value="bank">Rekening bank</option><option value="ewallet">E-wallet</option><option value="other">Lainnya</option></select></div><div class="field"><label for="ruWalletOpening">Saldo awal (Rp)</label><input id="ruWalletOpening" type="number" step="1" required value="0" placeholder="0"></div><div class="desc">Saldo awal adalah saldo sebelum transaksi yang tercatat di aplikasi.</div><div class="ru-wallet-form-actions"><button type="button" id="ruWalletCancel">Batal</button><button type="submit" class="primary">Simpan dompet</button></div></form></div>';
+      document.body.appendChild(modal);
+    }
+    return true;
+  }
+  function renderWallets(){
+    if(!ensureUI()) return;
+    var host=document.getElementById('ruWalletList');
+    var list=accounts();
+    if(!list.length){
+      host.innerHTML='<div class="desc" style="padding:14px 0">Belum ada dompet. Tambahkan dompet untuk mulai mencatat transaksi.</div>';
+      return;
+    }
+    host.innerHTML=list.map(function(a){
+      var used=accountUsed(a.id);
+      return '<div class="ru-wallet-row"><div style="min-width:0;flex:1"><strong>'+escWallet(a.name||'Dompet')+'</strong><div class="ru-wallet-meta">'+typeLabel(a.type)+' · Saldo awal '+rupiah(a.opening!==undefined?a.opening:a.balance)+'</div><div class="ru-wallet-balance">Saldo saat ini: '+rupiah(walletBalance(a))+'</div></div><div class="ru-wallet-actions"><button type="button" class="small" data-wallet-edit="'+escWallet(a.id)+'">Edit</button><button type="button" class="small danger" data-wallet-delete="'+escWallet(a.id)+'" '+(used?'disabled title="Dompet sudah dipakai transaksi"':'')+'>Hapus</button></div></div>';
+    }).join('');
+  }
+  function openWallet(id){
+    if(!ensureUI()) return;
+    var form=document.getElementById('ruWalletForm');
+    var account=id?accounts().find(function(a){return a.id===id;}):null;
+    form.reset();
+    document.getElementById('ruWalletId').value=account?account.id:'';
+    document.getElementById('ruWalletName').value=account?account.name||'':'';
+    document.getElementById('ruWalletType').value=account?account.type||'cash':'cash';
+    document.getElementById('ruWalletOpening').value=account?Number(account.opening!==undefined?account.opening:account.balance)||0:0;
+    document.getElementById('ruWalletModalTitle').textContent=account?'Edit dompet':'Tambah dompet';
+    document.getElementById('ruWalletModal').style.display='flex';
+    setTimeout(function(){var input=document.getElementById('ruWalletName');if(input)input.focus();},50);
+  }
+  function refreshApp(){
+    try{if(typeof save==='function')save();else if(typeof window.save==='function')window.save();}
+    catch(e){alert('Dompet disimpan sementara, tetapi gagal menyimpan data: '+e.message);return;}
+    try{if(typeof window.updateTxForm==='function')window.updateTxForm();}catch(e){}
+    try{if(typeof window.render==='function')window.render();}catch(e){}
+    try{if(typeof window.renderBusinessCategorySettings==='function')window.renderBusinessCategorySettings();}catch(e){}
+    renderWallets();
+  }
+  document.addEventListener('click',function(e){
+    var add=e.target&&e.target.closest?e.target.closest('#ruWalletAdd'):null;
+    var close=e.target&&e.target.closest?e.target.closest('#ruWalletClose,#ruWalletCancel'):null;
+    var edit=e.target&&e.target.closest?e.target.closest('[data-wallet-edit]'):null;
+    var del=e.target&&e.target.closest?e.target.closest('[data-wallet-delete]'):null;
+    if(add){e.preventDefault();openWallet('');return;}
+    if(close){e.preventDefault();document.getElementById('ruWalletModal').style.display='none';return;}
+    if(edit){e.preventDefault();openWallet(edit.getAttribute('data-wallet-edit'));return;}
+    if(del){
+      e.preventDefault();
+      var id=del.getAttribute('data-wallet-delete'),account=accounts().find(function(a){return a.id===id;});
+      if(!account)return;
+      if(accountUsed(id)){alert('Dompet ini sudah digunakan dalam transaksi. Jangan hapus agar riwayat dan saldo tetap benar.');return;}
+      if(accounts().length<=1){alert('Minimal harus ada satu dompet.');return;}
+      if(confirm('Hapus dompet "'+(account.name||'Dompet')+'"?')){
+        var st=appState();st.accounts=accounts().filter(function(a){return a.id!==id;});
+        refreshApp();
+      }
+    }
+  },true);
+  document.addEventListener('submit',function(e){
+    if(!e.target||e.target.id!=='ruWalletForm')return;
+    e.preventDefault();e.stopImmediatePropagation();
+    var st=appState(),id=document.getElementById('ruWalletId').value;
+    var name=document.getElementById('ruWalletName').value.trim();
+    var type=document.getElementById('ruWalletType').value;
+    var opening=Number(document.getElementById('ruWalletOpening').value);
+    if(!name){alert('Masukkan nama dompet.');return;}
+    if(!Number.isFinite(opening)){alert('Saldo awal tidak valid.');return;}
+    st.accounts=Array.isArray(st.accounts)?st.accounts:[];
+    if(st.accounts.some(function(a){return a.id!==id&&String(a.name||'').trim().toLowerCase()===name.toLowerCase();})){
+      alert('Nama dompet sudah digunakan. Gunakan nama yang berbeda.');return;
+    }
+    if(id){
+      var existing=st.accounts.find(function(a){return a.id===id;});
+      if(!existing){alert('Dompet tidak ditemukan.');return;}
+      existing.name=name;existing.type=type;existing.opening=Math.round(opening);delete existing.balance;
+    }else{
+      st.accounts.push({id:'wallet-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8),name:name,type:type,opening:Math.round(opening)});
+    }
+    document.getElementById('ruWalletModal').style.display='none';
+    refreshApp();
+  },true);
+  document.addEventListener('submit',function(e){
+    var form=e.target;
+    if(!form||!form.querySelector||!form.querySelector('#fType'))return;
+    var type=document.getElementById('fType').value;
+    if(type!=='transfer')return;
+    var from=document.getElementById('fAccount'),to=document.getElementById('fToAccount'),business=document.getElementById('fBusiness');
+    if(business)business.value='';
+    if(!from||!from.value||!to||!to.value){
+      e.preventDefault();e.stopImmediatePropagation();alert('Pilih dompet asal dan dompet tujuan untuk transfer.');return;
+    }
+    if(from.value===to.value){
+      e.preventDefault();e.stopImmediatePropagation();alert('Dompet asal dan tujuan harus berbeda.');return;
+    }
+  },true);
+  function renameTransferLabels(){
+    document.querySelectorAll('button,option,label,h1,h2,h3,small,strong,span,div').forEach(function(el){
+      if(el.children.length>4)return;
+      var txt=(el.textContent||'').trim();
+      if(/^transfer\s+antar\s+usaha$/i.test(txt))el.textContent='Transfer antar dompet';
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){renderWallets();renameTransferLabels();});
+  else {renderWallets();renameTransferLabels();}
+  document.addEventListener('click',function(e){
+    var settings=e.target&&e.target.closest?e.target.closest('[data-page="settings"],#settingsShortcut'):null;
+    if(settings)setTimeout(renderWallets,80);
+  },true);
+  if(typeof window.render==='function'){
+    var originalRender=window.render;
+    window.render=function(){originalRender.apply(this,arguments);renderWallets();};
+  }
+})();
+</script>
+"""
+    if "</body>" not in s:
+        raise SystemExit("Tidak menemukan penutup body untuk multi-wallet manager")
+    s = s.replace("</body>", wallet_js + "\n</body>", 1)
+    p.write_text(s)
