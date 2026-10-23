@@ -2386,3 +2386,114 @@ if "KasUsaha financial dashboard and reconciliation v1" not in s:
     s = s.replace("</body>", finance_ui_js + "\n</body>", 1)
     p.write_text(s)
 
+
+
+
+# Append-on UI override for circular business statistics. Keeps the existing dashboard/navigation intact.
+s = p.read_text()
+if "KasUsaha donut business stats v2" not in s:
+    donut_stats_js = r"""
+<script>
+/* KasUsaha donut business stats v2 */
+(function(){
+  if(window.__ruDonutBusinessStatsV2) return;
+  window.__ruDonutBusinessStatsV2 = true;
+  var colors=['#147d70','#5475d1','#e5a34c','#9b72cf','#e26f86'];
+  function st(){return (typeof state!=='undefined'&&state)?state:(window.state||{});}
+  function money(v){return 'Rp'+(Number(v)||0).toLocaleString('id-ID');}
+  function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function getMonthKey(t){
+    var d=String(t&&t.date||'');
+    if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d.slice(0,7);
+    var m=String(t&&(t.reportMonth||t.monthKey||t.month)||'');
+    return /^\d{4}-\d{2}/.test(m)?m.slice(0,7):'';
+  }
+  function getCurrentMonth(){
+    var d=new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
+  function ensureMarkup(){
+    var root=document.getElementById('ruFinanceDash');
+    if(!root) return null;
+    var h=root.querySelector('h2');
+    if(h) h.textContent='Statistik usaha';
+    var subtitle=root.querySelector('.ru-fd-head .ru-fd-sub');
+    if(subtitle) subtitle.textContent='Perbandingan pemasukan dan pengeluaran tiap usaha pada bulan ini.';
+    var kpis=document.getElementById('ruFdKpis');
+    if(kpis) kpis.style.display='none';
+    var oldChart=document.getElementById('ruFdChart');
+    if(oldChart) oldChart.style.display='none';
+    var oldLegend=root.querySelector('.ru-fd-legend');
+    if(oldLegend) oldLegend.style.display='none';
+    var host=document.getElementById('ruBusinessDonutStats');
+    if(!host){
+      host=document.createElement('div');
+      host.id='ruBusinessDonutStats';
+      host.className='ru-fd-business-charts';
+      host.innerHTML='<div class="ru-fd-chart-card"><h3>Usaha dengan pemasukan terbesar</h3><div id="ruDonutIncome"></div></div><div class="ru-fd-chart-card"><h3>Usaha dengan pengeluaran terbesar</h3><div id="ruDonutExpense"></div></div>';
+      var header=root.querySelector('.ru-fd-head');
+      if(header) header.insertAdjacentElement('afterend',host);
+      else root.appendChild(host);
+    }
+    return root;
+  }
+  function collect(){
+    var data=st(),list=Array.isArray(data.transactions)?data.transactions:[],businessList=(Array.isArray(data.businesses)?data.businesses:[]).filter(function(b){return !b.archived;}),by={};
+    businessList.forEach(function(b){by[b.id]={id:b.id,name:b.name||'Usaha',inc:0,out:0};});
+    var month=getCurrentMonth();
+    list.forEach(function(t){
+      if(getMonthKey(t)!==month || (t.type!=='income'&&t.type!=='expense')) return;
+      var id=t.businessId||'__general__';
+      if(!by[id]) by[id]={id:id,name:id==='__general__'?'Operasional umum':'Usaha lainnya',inc:0,out:0};
+      by[id][t.type==='income'?'inc':'out']+=Number(t.amount)||0;
+    });
+    return Object.keys(by).map(function(id){return by[id];});
+  }
+  function renderOne(id,kind){
+    var host=document.getElementById(id);
+    if(!host) return;
+    var sorted=collect().filter(function(x){return x[kind]>0;}).sort(function(a,b){return b[kind]-a[kind];});
+    var rows=sorted.slice(0,5),sum=rows.reduce(function(n,x){return n+x[kind];},0);
+    if(!sum){
+      host.innerHTML='<div class="ru-fd-sub" style="padding:6px 0 2px">Belum ada '+(kind==='inc'?'pemasukan':'pengeluaran')+' per usaha pada bulan ini.</div>';
+      return;
+    }
+    var deg=0,stops=rows.map(function(x,i){
+      var start=deg;deg+=x[kind]/sum*360;
+      return colors[i%colors.length]+' '+start+'deg '+deg+'deg';
+    }).join(',');
+    host.innerHTML='<div class="ru-fd-winner">Terbesar: '+esc(rows[0].name)+'</div>'+
+      '<div class="ru-fd-small-total">'+money(rows[0][kind])+'</div>'+
+      '<div class="ru-fd-donut-wrap" style="margin-top:10px">'+
+      '<div class="ru-fd-donut" style="background:conic-gradient('+stops+')"><div class="ru-fd-donut-center"><strong>'+rows.length+'</strong>usaha</div></div>'+
+      '<div class="ru-fd-donut-legend">'+rows.map(function(x,i){
+        return '<div><i class="ru-fd-dot" style="background:'+colors[i%colors.length]+'"></i>'+esc(x.name)+'<br><strong>'+money(x[kind])+'</strong></div>';
+      }).join('')+'</div></div>';
+  }
+  function render(){
+    if(!ensureMarkup()) return;
+    renderOne('ruDonutIncome','inc');
+    renderOne('ruDonutExpense','out');
+  }
+  var previousRender=window.render;
+  if(typeof previousRender==='function'){
+    window.render=function(){
+      var out=previousRender.apply(this,arguments);
+      setTimeout(render,50);
+      return out;
+    };
+  }
+  document.addEventListener('click',function(e){
+    var nav=e.target&&e.target.closest?e.target.closest('[data-page="dashboard"]'):null;
+    if(nav) setTimeout(render,100);
+  },true);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(render,80);});
+  else setTimeout(render,80);
+  setTimeout(render,350);
+})();
+</script>
+"""
+    if "</body>" not in s:
+        raise SystemExit("Tidak menemukan penutup body untuk statistik lingkaran")
+    s = s.replace("</body>", donut_stats_js + "\n</body>", 1)
+    p.write_text(s)
