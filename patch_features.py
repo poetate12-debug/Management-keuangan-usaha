@@ -1569,14 +1569,27 @@ if "KasUsaha category modal guard v2" not in s:
     e.preventDefault();
     e.stopImmediatePropagation();
     try {
+      var modal = document.getElementById('bizCategoryModal');
+      if(!modal) throw new Error('Jendela kategori tidak ditemukan di halaman. Silakan tutup lalu buka kembali halaman Usaha.');
+      /* The category editor is originally inside the businesses page. On mobile, the detail subpage hides that parent, so move the modal to body before opening it. */
+      if(modal.parentElement !== document.body) document.body.appendChild(modal);
       if(typeof window.openBusinessCategory !== 'function') throw new Error('Fungsi tambah kategori belum siap. Tutup lalu buka kembali halaman Usaha.');
       window.openBusinessCategory();
-      var modal = document.getElementById('bizCategoryModal');
+      modal = document.getElementById('bizCategoryModal');
       if(modal){
         modal.style.setProperty('display','flex','important');
+        modal.style.setProperty('position','fixed','important');
+        modal.style.setProperty('inset','0','important');
         modal.style.setProperty('z-index','10000','important');
+        modal.style.setProperty('align-items','center','important');
+        modal.style.setProperty('justify-content','center','important');
         var inner = modal.querySelector('.modal');
-        if(inner) inner.style.setProperty('z-index','10001','important');
+        if(inner){
+          inner.style.setProperty('position','relative','important');
+          inner.style.setProperty('z-index','10001','important');
+          inner.style.setProperty('max-height','85vh','important');
+          inner.style.setProperty('overflow-y','auto','important');
+        }
       }
     } catch(err) {
       alert('Tidak dapat membuka form kategori: ' + (err && err.message ? err.message : String(err)));
