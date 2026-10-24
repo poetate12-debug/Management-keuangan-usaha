@@ -2751,3 +2751,44 @@ if "KasUsaha backup restore capture override v3" not in s:
         raise SystemExit("Tidak menemukan penutup body untuk pemulihan cadangan capture v3")
     s=s.replace("</body>",restore_capture_js+"\n</body>",1)
     p.write_text(s)
+
+
+
+# KasUsaha wallet save render isolation v2.
+# Persist wallet CRUD without allowing the app's full renderer to break the save routine.
+s = p.read_text()
+if "KasUsaha wallet save render isolation v2" not in s:
+    old_refresh = """  function refreshApp(){
+    try{if(typeof save==='function')save();else if(typeof window.save==='function')window.save();}
+    catch(e){alert('Dompet disimpan sementara, tetapi gagal menyimpan data: '+e.message);return;}
+    try{if(typeof window.updateTxForm==='function')window.updateTxForm();}catch(e){}
+    try{if(typeof window.render==='function')window.render();}catch(e){}
+    try{if(typeof window.renderBusinessCategorySettings==='function')window.renderBusinessCategorySettings();}catch(e){}
+    renderWallets();
+  }"""
+    new_refresh = """  function refreshApp(){
+    var appRender=window.render;
+    var saveError=null;
+    /* save() may call render() internally; the full renderer touches optional form fields
+       that are not present on the Settings page in this Android WebView. Suppress only that
+       implicit render while persisting, then restore it and redraw defensively. */
+    try{
+      if(typeof window.render==='function')window.render=function(){};
+      if(typeof save==='function')save();
+      else if(typeof window.save==='function')window.save();
+      else throw new Error('Fungsi penyimpanan tidak ditemukan.');
+    }catch(e){saveError=e;}
+    finally{if(typeof appRender==='function')window.render=appRender;}
+    if(saveError){
+      alert('Gagal menyimpan perubahan dompet: '+(saveError.message||saveError)+'. Perubahan mungkin belum tersimpan. Jangan tutup aplikasi sebelum mencoba lagi.');
+      return;
+    }
+    try{if(typeof window.updateTxForm==='function')window.updateTxForm();}catch(e){}
+    try{if(typeof window.render==='function')window.render();}catch(e){}
+    try{if(typeof window.renderBusinessCategorySettings==='function')window.renderBusinessCategorySettings();}catch(e){}
+    try{renderWallets();}catch(e){}
+  }"""
+    if old_refresh not in s:
+        raise SystemExit("Tidak menemukan refreshApp wallet manager untuk diperbaiki")
+    s = s.replace(old_refresh, new_refresh, 1)
+    p.write_text(s)
