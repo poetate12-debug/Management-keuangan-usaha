@@ -2680,3 +2680,74 @@ if "KasUsaha backup restore binding and compatibility v2" not in s:
         raise SystemExit("Tidak menemukan penutup body untuk perbaikan pemulihan cadangan")
     s=s.replace("</body>",restore_js+"\n</body>",1)
     p.write_text(s)
+
+
+
+# KasUsaha backup restore capture override v3.
+# Capture the file picker change before legacy inline handlers can reject valid JSON backups.
+s = p.read_text()
+if "KasUsaha backup restore capture override v3" not in s:
+    restore_capture_js = r"""
+<script>
+/* KasUsaha backup restore capture override v3 */
+(function(){
+  window.__ruRestoreBackupVersion='v3-capture';
+  function targetIsBackupInput(el){
+    if(!el||String(el.tagName||'').toLowerCase()!=='input'||String(el.type||'').toLowerCase()!=='file')return false;
+    var id=String(el.id||'').toLowerCase(),accept=String(el.accept||'').toLowerCase();
+    return id.indexOf('backup')>=0||id.indexOf('restore')>=0||accept.indexOf('json')>=0;
+  }
+  function runRestore(input){
+    if(typeof window.ruRestoreBackupV2==='function'){
+      window.ruRestoreBackupV2({target:input});
+      return;
+    }
+    if(typeof window.importBackupFile==='function'){
+      window.importBackupFile({target:input});
+      return;
+    }
+    alert('Pemulihan cadangan belum tersedia pada versi aplikasi ini. Perbarui aplikasi ke APK terbaru.');
+  }
+  /* Main guard: skip old inline onchange functions which showed the generic invalid-file alert. */
+  document.addEventListener('change',function(event){
+    var input=event.target;
+    if(!targetIsBackupInput(input))return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(event.stopImmediatePropagation)event.stopImmediatePropagation();
+    runRestore(input);
+  },true);
+  function bindInput(input){
+    if(!targetIsBackupInput(input)||input.dataset.ruRestoreCaptureV3==='1')return;
+    input.dataset.ruRestoreCaptureV3='1';
+    input.removeAttribute('onchange');
+    input.onchange=null;
+  }
+  function scan(){
+    document.querySelectorAll('input[type="file"]').forEach(bindInput);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',scan);
+  else scan();
+  try{
+    new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
+  }catch(err){}
+  document.addEventListener('click',function(event){
+    var btn=event.target&&event.target.closest?event.target.closest('button'):null;
+    if(!btn)return;
+    var label=String(btn.innerText||btn.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+    if(!/pulihkan cadangan|impor data|restore backup|import backup/.test(label))return;
+    var root=btn.closest('#page-settings')||document;
+    var input=root.querySelector('input[type="file"][id*="backup"],input[type="file"][accept*="json" i]')||document.querySelector('input[type="file"][id*="backup"],input[type="file"][accept*="json" i]');
+    if(!input)return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(event.stopImmediatePropagation)event.stopImmediatePropagation();
+    input.click();
+  },true);
+})();
+</script>
+"""
+    if "</body>" not in s:
+        raise SystemExit("Tidak menemukan penutup body untuk pemulihan cadangan capture v3")
+    s=s.replace("</body>",restore_capture_js+"\n</body>",1)
+    p.write_text(s)
