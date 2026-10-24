@@ -2548,3 +2548,135 @@ if "KasUsaha editable transaction nominal and discount v1" not in s:
         raise SystemExit("Tidak menemukan penutup body untuk tampilan diskon")
     s=s.replace("</body>",discount_js+"\n</body>",1)
     p.write_text(s)
+
+
+
+# KasUsaha backup restore binding and compatibility v2.
+# Bind the visible picker directly to the most recent restore handler and accept legacy wrappers.
+s = p.read_text()
+if "KasUsaha backup restore binding and compatibility v2" not in s:
+    restore_js = r"""
+<script>
+/* KasUsaha backup restore binding and compatibility v2 */
+(function(){
+  function appState(){return (typeof state!=='undefined'&&state)?state:(window.state||{});}
+  function showError(msg){alert('Pulihkan cadangan gagal: '+msg);}
+  function locateData(parsed){
+    var candidates=[];
+    if(parsed&&parsed.data)candidates.push(parsed.data);
+    if(parsed&&parsed.state)candidates.push(parsed.state);
+    if(parsed&&parsed.backup&&parsed.backup.data)candidates.push(parsed.backup.data);
+    if(parsed&&parsed.payload)candidates.push(parsed.payload);
+    candidates.push(parsed);
+    for(var i=0;i<candidates.length;i++){
+      var d=candidates[i];
+      if(d&&typeof d==='object'&&!Array.isArray(d)&&Array.isArray(d.transactions)&&Array.isArray(d.accounts))return d;
+    }
+    return null;
+  }
+  function restoreFile(event){
+    var input=event&&event.target,file=input&&input.files&&input.files[0];
+    if(!file)return;
+    if(!/\.json$/i.test(file.name||'')&&file.type&&file.type!=='application/json'&&file.type!=='text/plain'){
+      showError('Pilih file cadangan berformat .json, bukan file Excel/CSV.');
+      if(input)input.value='';
+      return;
+    }
+    var reader=new FileReader();
+    reader.onload=function(){
+      try{
+        var raw=String(reader.result||'').replace(/^\uFEFF/,'').trim();
+        if(!raw)throw new Error('File kosong.');
+        var parsed;
+        try{parsed=JSON.parse(raw);}catch(e){throw new Error('Isi file bukan JSON yang valid. Pastikan file tidak diubah oleh aplikasi lain.');}
+        var d=locateData(parsed);
+        if(!d)throw new Error('Struktur cadangan tidak dikenali. File harus berisi data transaksi dan akun/dompet. Jika memungkinkan, kirim file JSON tersebut agar dapat diperiksa.');
+        var current=appState();
+        var accounts=d.accounts.map(function(a,i){
+          if(!a||typeof a!=='object')throw new Error('Data akun/dompet ke-'+(i+1)+' tidak valid.');
+          var x=Object.assign({},a);
+          x.id=x.id||('import-account-'+Date.now()+'-'+i);
+          x.opening=Number(x.opening!==undefined?x.opening:(x.balance!==undefined?x.balance:0))||0;
+          delete x.balance;
+          return x;
+        });
+        var transactions=d.transactions.map(function(t,i){
+          if(!t||typeof t!=='object')throw new Error('Data transaksi ke-'+(i+1)+' tidak valid.');
+          var x=Object.assign({},t);
+          x.id=x.id||('import-tx-'+Date.now()+'-'+i);
+          x.amount=Number(x.amount)||0;
+          x.date=String(x.date||'');
+          if(!x.reportMonth)x.reportMonth=x.monthKey||x.month||'';
+          x.type=['income','expense','transfer'].indexOf(x.type)>=0?x.type:'expense';
+          x.businessId=x.businessId||'';
+          x.categoryId=x.categoryId||'';
+          x.accountId=x.accountId||(accounts[0]&&accounts[0].id)||'';
+          return x;
+        });
+        var categories=Array.isArray(d.categories)?d.categories.map(function(c){return Object.assign({},c,{type:c.type==='income'?'income':'expense',businessId:c.businessId||''});}):(Array.isArray(current.categories)?current.categories:[]);
+        if(!Array.isArray(d.categories)&&!categories.length)throw new Error('Daftar kategori tidak ditemukan pada file cadangan.');
+        if(!confirm('Pulihkan '+transactions.length+' transaksi dan '+accounts.length+' akun/dompet dari file ini? Data aplikasi saat ini akan diganti. Pastikan Anda sudah membuat cadangan terbaru sebelum melanjutkan.'))return;
+        var imported=Object.assign({},current,d,{
+          accounts:accounts,
+          transactions:transactions,
+          categories:categories,
+          businesses:Array.isArray(d.businesses)?d.businesses:(Array.isArray(current.businesses)?current.businesses:[]),
+          products:Array.isArray(d.products)?d.products:(Array.isArray(current.products)?current.products:[]),
+          hppRecords:Array.isArray(d.hppRecords)?d.hppRecords:(Array.isArray(current.hppRecords)?current.hpppRecords||current.hppRecords:[]),
+          walletAdjustments:Array.isArray(d.walletAdjustments)?d.walletAdjustments:(Array.isArray(current.walletAdjustments)?current.walletAdjustments:[])
+        });
+        var previous=window.state;
+        try{
+          state=imported;
+          if(typeof save==='function')save();
+          else if(typeof window.save==='function')window.save();
+          else throw new Error('Fungsi penyimpanan aplikasi tidak ditemukan.');
+        }catch(saveError){
+          try{state=previous||current;if(typeof save==='function')save();}catch(ignored){}
+          throw new Error('Data berhasil dibaca, tetapi penyimpanan gagal: '+(saveError&&saveError.message||saveError));
+        }
+        try{if(typeof window.render==='function')window.render();}catch(renderError){}
+        try{if(typeof window.renderRuMonthlyBusinessReport==='function')window.renderRuMonthlyBusinessReport();}catch(reportError){}
+        try{if(typeof window.showToast==='function')window.showToast('Cadangan berhasil dipulihkan.');}catch(toastError){}
+        alert('Cadangan berhasil dipulihkan. Transaksi: '+transactions.length+'. Akun/dompet: '+accounts.length+'.');
+      }catch(err){
+        showError(err&&err.message?err.message:String(err));
+      }finally{
+        if(input)input.value='';
+      }
+    };
+    reader.onerror=function(){showError('File tidak dapat dibaca oleh perangkat.');if(input)input.value='';};
+    reader.readAsText(file,'UTF-8');
+  }
+  window.ruRestoreBackupV2=restoreFile;
+  window.importBackupFile=restoreFile;
+  function bind(){
+    var input=document.getElementById('backupFile');
+    if(input){
+      input.removeAttribute('onchange');
+      input.onchange=restoreFile;
+      input.addEventListener('change',restoreFile);
+      /* Prevent double import if both the property and listener fire. */
+      input.removeEventListener('change',restoreFile);
+      input.onchange=restoreFile;
+    }
+    document.querySelectorAll('#page-settings button').forEach(function(btn){
+      var label=String(btn.innerText||btn.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+      if(/pulihkan cadangan|impor data/.test(label)){
+        btn.onclick=function(e){
+          if(e){e.preventDefault();e.stopPropagation();}
+          var picker=document.getElementById('backupFile');
+          if(picker)picker.click();
+        };
+      }
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);
+  else bind();
+})();
+</script>
+"""
+    if "</body>" not in s:
+        raise SystemExit("Tidak menemukan penutup body untuk perbaikan pemulihan cadangan")
+    s=s.replace("</body>",restore_js+"\n</body>",1)
+    p.write_text(s)
