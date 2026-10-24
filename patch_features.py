@@ -2497,3 +2497,54 @@ if "KasUsaha donut business stats v2" not in s:
         raise SystemExit("Tidak menemukan penutup body untuk statistik lingkaran")
     s = s.replace("</body>", donut_stats_js + "\n</body>", 1)
     p.write_text(s)
+
+
+
+# KasUsaha editable transaction nominal and discount v1.
+# Keep product unit prices editable and let transaction amount be the final customer price.
+s = p.read_text()
+if "KasUsaha editable transaction nominal and discount v1" not in s:
+    old_calc = "function recalcSaleTotal(){const rows=[...document.querySelectorAll('#saleItems .sale-row')],sum=rows.reduce((n,r)=>n+(Number(r.dataset.subtotal)||0),0),amount=document.getElementById('fAmount');if(document.getElementById('fType').value==='income'&&rows.length){amount.value=Math.round(sum);amount.readOnly=true}else amount.readOnly=false}"
+    new_calc = "function recalcSaleTotal(){const rows=[...document.querySelectorAll('#saleItems .sale-row')],sum=rows.reduce((n,r)=>n+(Number(r.dataset.subtotal)||0),0),amount=document.getElementById('fAmount');amount.readOnly=false;const info=document.getElementById('saleDiscountInfo');if(info){const finalAmount=Math.max(0,Number(amount.value)||0),discount=Math.max(0,Math.round(sum-finalAmount));info.innerHTML='Total harga produk: <strong>'+money(sum)+'</strong> · Harga transaksi: <strong>'+money(finalAmount)+'</strong> · Diskon: <strong style=\\\"color:var(--green)\\\">'+money(discount)+'</strong>';}}"
+    if old_calc not in s:
+        raise SystemExit("Tidak menemukan fungsi recalcSaleTotal untuk diubah")
+    s=s.replace(old_calc,new_calc,1)
+    old_override="if(type==='income'&&items.length)t.amount=Math.round(items.reduce((n,i)=>n+i.qty*i.price,0));"
+    new_override="if(type==='income'&&items.length)t.discount=Math.max(0,Math.round(items.reduce((n,i)=>n+i.qty*i.price,0)-t.amount));"
+    if old_override not in s:
+        raise SystemExit("Tidak menemukan pengunci nominal transaksi untuk diubah")
+    s=s.replace(old_override,new_override,1)
+    old_wrap='<div id="saleItems"></div></div>'
+    new_wrap='<div id="saleItems"></div><div id="saleDiscountInfo" class="desc" style="margin-top:8px;padding:10px;background:#f4f8f7;border-radius:10px">Total harga produk: Rp0 · Harga transaksi: Rp0 · Diskon: Rp0</div></div>'
+    if old_wrap not in s:
+        raise SystemExit("Tidak menemukan area produk terjual untuk menambah rincian diskon")
+    s=s.replace(old_wrap,new_wrap,1)
+    # Existing form values and item price inputs are left intact; update the discount hint while typing.
+    discount_js = r"""
+<script>
+/* KasUsaha editable transaction nominal and discount v1 */
+(function(){
+  function refreshSaleDiscount(){
+    var amount=document.getElementById('fAmount'),host=document.getElementById('saleDiscountInfo');
+    if(!amount||!host)return;
+    var rows=[].slice.call(document.querySelectorAll('#saleItems .sale-row'));
+    var total=rows.reduce(function(n,r){return n+(Number(r.querySelector('.sale-q')&&r.querySelector('.sale-q').value)||0)*(Number(r.querySelector('.sale-v')&&r.querySelector('.sale-v').value)||0);},0);
+    var finalAmount=Math.max(0,Number(amount.value)||0),discount=Math.max(0,Math.round(total-finalAmount));
+    function rp(v){return 'Rp'+Math.round(Number(v)||0).toLocaleString('id-ID');}
+    host.innerHTML='Total harga produk: <strong>'+rp(total)+'</strong> · Harga transaksi: <strong>'+rp(finalAmount)+'</strong> · Diskon: <strong style="color:var(--green)">'+rp(discount)+'</strong>';
+  }
+  document.addEventListener('input',function(e){
+    if(e.target&&(['fAmount'].indexOf(e.target.id)>=0||e.target.closest&&e.target.closest('#saleItems')))refreshSaleDiscount();
+  },true);
+  document.addEventListener('change',function(e){if(e.target&&e.target.closest&&e.target.closest('#saleItems'))setTimeout(refreshSaleDiscount,0);},true);
+  document.addEventListener('click',function(e){if(e.target&&e.target.closest&&e.target.closest('#saleItemsWrap'))setTimeout(refreshSaleDiscount,0);},true);
+  var oldRender=window.render;
+  if(typeof oldRender==='function')window.render=function(){var r=oldRender.apply(this,arguments);setTimeout(refreshSaleDiscount,0);return r;};
+  setTimeout(refreshSaleDiscount,100);
+})();
+</script>
+"""
+    if "</body>" not in s:
+        raise SystemExit("Tidak menemukan penutup body untuk tampilan diskon")
+    s=s.replace("</body>",discount_js+"\n</body>",1)
+    p.write_text(s)
